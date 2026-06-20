@@ -32,7 +32,7 @@ export const PenaltyShootoutGame: React.FC<GameProps> = ({ balance, onUpdateBala
         return;
       }
       stakeRef.current = safeStake;
-      onUpdateBalance(balance - safeStake);
+      onUpdateBalance((prev) => prev - safeStake);
       setInGame(true);
       setRoundsCount(1);
       setCurrentMulti(1.0);
@@ -58,7 +58,7 @@ export const PenaltyShootoutGame: React.FC<GameProps> = ({ balance, onUpdateBala
 
         if (roundsCount >= 4) {
           const finalVal = stakeRef.current * 40.0;
-          onUpdateBalance(balance - stakeRef.current + finalVal);
+          onUpdateBalance((prev) => prev + finalVal);
           setInGame(false);
           setCommentary(`🏆 SHOT-MASTER! 4 goals in a row! Maximum payout $${finalVal.toFixed(2)} (40.0x Jackpot)!`);
           addLog("Penalty Shootout", stakeRef.current, 40.0, "WIN", "Cleared 4 rounds penalty streak!");
@@ -74,7 +74,7 @@ export const PenaltyShootoutGame: React.FC<GameProps> = ({ balance, onUpdateBala
   const handleCashout = () => {
     if (!inGame || roundsCount <= 1 || firing) return;
     const winVal = stakeRef.current * currentMulti;
-    onUpdateBalance(balance + winVal);
+    onUpdateBalance((prev) => prev + winVal);
     setInGame(false);
     setCommentary(`💰 CASHED OUT! Secured $${winVal.toFixed(2)} at ${currentMulti}x!`);
     addLog("Penalty Shootout", stakeRef.current, currentMulti, "WIN", `Safe Cashout after ${roundsCount - 1} goals`);

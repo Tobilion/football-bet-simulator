@@ -26,7 +26,7 @@ export const PlinkoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addL
       setCommentary("❌ Insufficient balance.");
       return;
     }
-    onUpdateBalance(balance - safeStake);
+    onUpdateBalance((prev) => prev - safeStake);
     setDropping(true);
     setPegPath([]);
     setCommentary("Chip is bouncing on the pegboard... watch the drift!");
@@ -49,7 +49,7 @@ export const PlinkoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addL
         const binIdx = Math.min(7, rightBouncesCount);
         const hitBin = bins[binIdx];
         const winPayout = safeStake * hitBin.multi;
-        onUpdateBalance(balance - safeStake + winPayout);
+        onUpdateBalance((prev) => prev + winPayout);
 
         setCommentary(`💎 Landed in ${hitBin.label} bin! Return: $${winPayout.toFixed(2)}`);
         addLog("Golden Boot Plinko", safeStake, hitBin.multi, hitBin.multi >= 1.0 ? "WIN" : "LOSS", `Landed in ${hitBin.label} slot`);

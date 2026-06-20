@@ -103,12 +103,79 @@ export function generateMatchOdds(homeTeam: Team, awayTeam: Team): MatchOdds {
   // Sort goalscorers so lowest odds (most likely) come first
   goalscorers.sort((a, b) => a.odds - b.odds);
 
+  // Expanded markets
+  const homeOrDrawRaw = homeWinProbRaw + drawProbRaw;
+  const homeOrAwayRaw = homeWinProbRaw + awayWinProbRaw;
+  const drawOrAwayRaw = drawProbRaw + awayWinProbRaw;
+
+  const bttsYesRaw = Math.min(0.8, Math.max(0.3, 0.5 + (0.01 * (homePower + awayPower - 120))));
+  const bttsNoRaw = 1.0 - bttsYesRaw;
+
+  // Derive Over/Under (using dummy approximations based on total Power)
+  const averageTotalGoals = (homePower + awayPower) / 50; // just an arbitrary base measure
+  
+  // Create realistic looking lines
+  const overUnderRaw = (line: number) => {
+    const diff = averageTotalGoals - line;
+    // Base 0.5 prob logic:
+    const overProb = Math.max(0.05, Math.min(0.95, 0.5 + diff * 0.2));
+    const underProb = 1.0 - overProb;
+    return {
+      over: Math.max(1.01, Math.round((1 / (overProb / margin)) * 100) / 100),
+      under: Math.max(1.01, Math.round((1 / (underProb / margin)) * 100) / 100)
+    }
+  }
+
+  // Double chance
+  const doubleChance = {
+    homeOrDraw: Math.max(1.01, Math.round((1 / (homeOrDrawRaw / margin)) * 100) / 100),
+    homeOrAway: Math.max(1.01, Math.round((1 / (homeOrAwayRaw / margin)) * 100) / 100),
+    drawOrAway: Math.max(1.01, Math.round((1 / (drawOrAwayRaw / margin)) * 100) / 100),
+  };
+
+  const bothTeamsToScore = {
+    yes: Math.max(1.05, Math.round((1 / (bttsYesRaw / margin)) * 100) / 100),
+    no: Math.max(1.05, Math.round((1 / (bttsNoRaw / margin)) * 100) / 100)
+  };
+
+  const overUnder = {
+    over0_5: overUnderRaw(0.5).over, under0_5: overUnderRaw(0.5).under,
+    over1_5: overUnderRaw(1.5).over, under1_5: overUnderRaw(1.5).under,
+    over2_5: overUnderRaw(2.5).over, under2_5: overUnderRaw(2.5).under,
+    over3_5: overUnderRaw(3.5).over, under3_5: overUnderRaw(3.5).under,
+    over4_5: overUnderRaw(4.5).over, under4_5: overUnderRaw(4.5).under,
+  };
+
+  const overUnderCorners = {
+    line: 9.5,
+    over: Math.max(1.5, Math.round((1 / (0.6 / margin)) * 100) / 100),
+    under: Math.max(1.5, Math.round((1 / (0.4 / margin)) * 100) / 100)
+  };
+
+  const overUnderCards = {
+    line: 3.5,
+    over: Math.max(1.5, Math.round((1 / (0.45 / margin)) * 100) / 100),
+    under: Math.max(1.5, Math.round((1 / (0.55 / margin)) * 100) / 100)
+  };
+
+  const overUnderSaves = {
+    line: 7.5,
+    over: Math.max(1.5, Math.round((1 / (0.5 / margin)) * 100) / 100),
+    under: Math.max(1.5, Math.round((1 / (0.5 / margin)) * 100) / 100)
+  };
+
   return {
     homeWin: homeWinOdds,
     draw: drawOdds,
     awayWin: awayWinOdds,
     exactScores,
-    goalscorers: goalscorers.slice(0, 16) // Top 16 likely goalscorers for compact odds displays
+    goalscorers: goalscorers.slice(0, 16), // Top 16 likely goalscorers for compact odds displays
+    doubleChance,
+    bothTeamsToScore,
+    overUnder,
+    overUnderCorners,
+    overUnderCards,
+    overUnderSaves
   };
 }
 

@@ -17,6 +17,10 @@ export const LeagueStandings: React.FC<LeagueStandingsProps> = ({
   const [selectedMatchday, setSelectedMatchday] = useState<number>(currentRoundIndex);
   const [inspectedMatch, setInspectedMatch] = useState<Fixture | null>(null);
 
+  React.useEffect(() => {
+    setSelectedMatchday(currentRoundIndex);
+  }, [currentRoundIndex]);
+
   // 1. Calculate standing records for all 16 teams
   // Each team has wonMatches, drawnMatches, lostMatches, goalsScored, goalsConceded
   // Let's compute their played, GD, and Points on the fly
@@ -49,7 +53,7 @@ export const LeagueStandings: React.FC<LeagueStandingsProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in" id="league-standings-section">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in flex-1 overflow-y-auto no-scrollbar p-1 pb-16" id="league-standings-section">
       {/* 1. Standings Table Part */}
       <div className="lg:col-span-2 glass-panel border border-white/5 rounded-2xl p-5 flex flex-col space-y-4 shadow-xl select-none">
         <div className="flex items-center justify-between pb-2 border-b border-white/5">

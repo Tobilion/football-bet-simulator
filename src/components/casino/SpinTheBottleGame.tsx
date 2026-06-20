@@ -17,14 +17,16 @@ export const SpinTheBottleGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
       setCommentary("❌ Insufficient balance.");
       return;
     }
-    onUpdateBalance(balance - safeStake);
+    onUpdateBalance((prev) => prev - safeStake);
     setSpinning(true);
     setResult(null);
     setCommentary("Champagne cork is loose... Spinning the bottle at hyper-speed!");
 
-    const cycles = 5 + Math.random() * 5;
-    const finalRot = cycles * 360;
-    setRotationDegrees(finalRot);
+    // Ensure we always spin forward from the current rotation
+    const baseDegrees = rotationDegrees - (rotationDegrees % 360);
+    const extraCycles = (5 + Math.floor(Math.random() * 5)) * 360;
+    const targetSpinDegrees = baseDegrees + extraCycles;
+    setRotationDegrees(targetSpinDegrees);
 
     setTimeout(() => {
       setSpinning(false);
@@ -44,16 +46,15 @@ export const SpinTheBottleGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
         offsetDeg = 180 + (Math.random() * 80 - 40);
       }
 
-      setRotationDegrees(finalRot + offsetDeg);
+      setRotationDegrees(targetSpinDegrees + offsetDeg);
       setResult(finalRes);
 
       if (finalRes === "FREEZE") {
-        setCommentary("❄️ UNFORTUNATE! The bottle froze on the center line! Bet returned.");
-        onUpdateBalance(balance - safeStake + safeStake);
-        addLog("Spin the Bottle", safeStake, 0, "FREEZE", "Center Freeze — stake returned");
+        setCommentary("❄️ UNFORTUNATE! The bottle froze on the center line! You lose your stake! 🏠 HOUSE WINS!!");
+        addLog("Spin the Bottle", safeStake, 0, "LOSS", "Center Freeze — you lose");
       } else if (finalRes === betSide) {
         const payout = safeStake * 2.2;
-        onUpdateBalance(balance - safeStake + payout);
+        onUpdateBalance((prev) => prev + payout);
         setCommentary(`🎉 EXCELLENT! Bottle nozzle points ${finalRes}! You won $${payout.toFixed(2)} (2.2x)!`);
         addLog("Spin the Bottle", safeStake, 2.2, "WIN", `Nozzle pointed ${finalRes}`);
       } else {

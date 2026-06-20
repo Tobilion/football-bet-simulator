@@ -16,7 +16,7 @@ export const OverUnderDiceGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
       setCommentary("❌ Insufficient balance.");
       return;
     }
-    onUpdateBalance(balance - safeStake);
+    onUpdateBalance((prev) => prev - safeStake);
     setRolling(true);
     setCommentary("Rolling dice cups...");
 
@@ -44,7 +44,7 @@ export const OverUnderDiceGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
 
       if (success) {
         const winVal = safeStake * multiplier;
-        onUpdateBalance(balance - safeStake + winVal);
+        onUpdateBalance((prev) => prev + winVal);
         setCommentary(`🎉 ${d1} + ${d2} = ${sum} — ${targetMode.replace("_", " ")} HIT! Won $${winVal.toFixed(2)} (${multiplier}x)!`);
         addLog("Over/Under Dice", safeStake, multiplier, "WIN", `Sum was ${sum} (Guessed ${targetMode})`);
       } else {

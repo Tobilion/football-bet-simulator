@@ -244,19 +244,26 @@ export const BettingSlip: React.FC<BettingSlipProps> = ({
 
   if (collapsed) {
     return (
-      <button
-        id="betting-slip-toggle"
-        onClick={() => setCollapsed(false)}
-        className="fixed bottom-20 md:relative md:bottom-0 right-4 h-12 w-12 rounded-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 border border-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 font-black shrink-0 transition-transform cursor-pointer z-50 md:mx-2 md:my-auto"
-        title="Open Betting Slip"
-      >
-        <span>🎫</span>
-        {selections.length > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white font-mono text-[10px] h-5 w-5 rounded-full flex items-center justify-center font-bold">
-            {selections.length}
-          </span>
-        )}
-      </button>
+      <div className="fixed bottom-20 md:absolute md:-right-8 md:top-1/2 md:-translate-y-1/2 md:-rotate-90 right-4 flex items-center gap-2 z-50">
+        <button
+          id="betting-slip-toggle"
+          onClick={() => setCollapsed(false)}
+          className={`flex items-center shadow-emerald-500/20 font-black shrink-0 transition-all cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-slate-950 border border-emerald-400 ${selections.length > 0 ? "h-12 w-auto px-4 rounded-full gap-3 shadow-lg" : "h-12 w-12 rounded-full justify-center shadow-lg"}`}
+          title="Open Betting Slip"
+        >
+          <span>🎫</span>
+          {selections.length > 0 && (
+            <>
+              <div className="flex items-center gap-2 max-w-[150px] md:max-w-[200px] overflow-hidden whitespace-nowrap text-[10px] sm:text-xs font-sans font-bold text-left overflow-ellipsis mask-image-fade-right">
+                 {selections.map(s => s.selectionName).join(" • ")}
+              </div>
+              <span className="bg-red-500 text-white font-mono text-[10px] sm:text-xs h-5 sm:h-6 w-5 sm:w-6 rounded-full flex items-center justify-center font-bold shrink-0">
+                {selections.length}
+              </span>
+            </>
+          )}
+        </button>
+      </div>
     );
   }
 

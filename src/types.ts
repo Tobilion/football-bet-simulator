@@ -50,7 +50,16 @@ export interface Team {
 
 export type FixtureStatus = "SCHEDULED" | "LIVE" | "FT";
 
-export type MarketType = "MATCH_WINNER" | "EXACT_SCORE" | "ANYTIME_GOALSCORER";
+export type MarketType =
+  | "MATCH_WINNER"
+  | "DOUBLE_CHANCE"
+  | "OVER_UNDER_GOALS"
+  | "BOTH_TEAMS_TO_SCORE"
+  | "EXACT_SCORE"
+  | "ANYTIME_GOALSCORER"
+  | "OVER_UNDER_CORNERS"
+  | "OVER_UNDER_CARDS"
+  | "OVER_UNDER_SAVES";
 
 export interface MatchStats {
   home: {
@@ -99,6 +108,42 @@ export interface MatchOdds {
   awayWin: number;
   exactScores: { score: string; odds: number }[];
   goalscorers: GoalscorerOdds[];
+  doubleChance?: {
+    homeOrDraw: number;
+    homeOrAway: number;
+    drawOrAway: number;
+  };
+  bothTeamsToScore?: {
+    yes: number;
+    no: number;
+  };
+  overUnder?: {
+    over0_5: number;
+    under0_5: number;
+    over1_5: number;
+    under1_5: number;
+    over2_5: number;
+    under2_5: number;
+    over3_5: number;
+    under3_5: number;
+    over4_5: number;
+    under4_5: number;
+  };
+  overUnderCorners?: {
+    over: number;
+    under: number;
+    line: number;
+  };
+  overUnderCards?: {
+    over: number;
+    under: number;
+    line: number;
+  };
+  overUnderSaves?: {
+    over: number;
+    under: number;
+    line: number;
+  };
 }
 
 export interface Fixture {

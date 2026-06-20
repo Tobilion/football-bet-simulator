@@ -53,7 +53,7 @@ export const RedOrBlackGame: React.FC<GameProps> = ({ balance, onUpdateBalance, 
         currentPoolRef.current = newPool;
 
         if (thisRound >= 4) {
-          onUpdateBalance(balStart - origWager + newPool);
+          onUpdateBalance((prev) => prev + newPool);
           setMessage(`🏆 MASTER STREAK! 4 rounds cleared! You win $${newPool.toFixed(2)} (${ROUND_MULTIS[3]}x)!`);
           addLog("Red or Black", origWager, ROUND_MULTIS[3], "WIN", "Mastered 4 rounds streak!");
           setRound(0);
@@ -79,9 +79,11 @@ export const RedOrBlackGame: React.FC<GameProps> = ({ balance, onUpdateBalance, 
 
   const selectColor = (choice: "RED" | "BLACK") => {
     if (spinning) return;
+    setSpinning(true);
     if (round === 0) {
       if (balance <= 0) {
-        setMessage("❌ No balance remaining. Claim the free $500 emergency cash above!");
+        setMessage("❌ Insufficient balance. Top up your wallet or claim emergency funds.");
+        setSpinning(false);
         return;
       }
       const wager = Math.min(safeStake, balance);
@@ -89,23 +91,20 @@ export const RedOrBlackGame: React.FC<GameProps> = ({ balance, onUpdateBalance, 
       currentRoundRef.current = 1;
       currentPoolRef.current = wager;
       balanceAtStartRef.current = balance;
-      onUpdateBalance(balance - wager);
+      onUpdateBalance((prev) => Math.max(0, prev - wager));
       setRound(1);
       setCurrentPool(wager);
       setHistory([]);
       setLastDraw(null);
-      resolveRound(choice);
-    } else {
-      resolveRound(choice);
     }
+    resolveRound(choice);
   };
 
   const handleCashout = () => {
     if (round <= 1 || currentPool <= 0 || spinning) return;
     const finalPool = currentPoolRef.current;
     const origWager = originalWagerRef.current;
-    const balStart = balanceAtStartRef.current;
-    onUpdateBalance(balStart - origWager + finalPool);
+    onUpdateBalance((prev) => prev + finalPool);
     setMessage(`💰 Safe recovery! Cashed out $${finalPool.toFixed(2)} after round ${round - 1} (${(finalPool / origWager).toFixed(2)}x)!`);
     addLog("Red or Black", origWager, finalPool / origWager, "WIN", `Safe Cashout after Round ${round - 1}`);
     setRound(0);

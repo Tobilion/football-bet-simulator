@@ -52,6 +52,8 @@ export const MyBets: React.FC<MyBetsProps> = ({ tickets, fixtures, teams, balanc
 
     const homeS = Math.floor(f.homeScore);
     const awayS = Math.floor(f.awayScore);
+    const penStr = f.penaltyScore ? ` (Pens: ${f.penaltyScore})` : "";
+    const ftDisplay = `${homeS}-${awayS}${penStr}`;
 
     if (marketType === "MATCH_WINNER") {
       let actual: "HOME" | "DRAW" | "AWAY" = "DRAW";
@@ -60,15 +62,82 @@ export const MyBets: React.FC<MyBetsProps> = ({ tickets, fixtures, teams, balanc
 
       const matched = selectionId === actual;
       return {
-        text: `FT: ${homeS}-${awayS}. Prediction ${selectionId === "HOME" ? "Home Win" : selectionId === "AWAY" ? "Away Win" : "Draw"} ${matched ? "Hit!" : "Missed"}`,
+        text: `FT: ${ftDisplay}. Prediction ${selectionId === "HOME" ? "Home Win" : selectionId === "AWAY" ? "Away Win" : "Draw"} ${matched ? "Hit!" : "Missed"}`,
         state: f.status === "FT" ? (matched ? "WON" : "LOST") : "LIVE"
       };
 
+    } else if (marketType === "DOUBLE_CHANCE") {
+      let actual: "HOME" | "DRAW" | "AWAY" = "DRAW";
+      if (homeS > awayS) actual = "HOME";
+      if (awayS > homeS) actual = "AWAY";
+      
+      let matched = true;
+      if (selectionId === "HOME_OR_DRAW" && actual === "AWAY") matched = false;
+      if (selectionId === "HOME_OR_AWAY" && actual === "DRAW") matched = false;
+      if (selectionId === "DRAW_OR_AWAY" && actual === "HOME") matched = false;
+      
+      return {
+        text: `FT: ${ftDisplay}. Prediction Double Chance ${matched ? "Hit!" : "Missed"}`,
+        state: f.status === "FT" ? (matched ? "WON" : "LOST") : "LIVE"
+      };
+      
+    } else if (marketType === "BOTH_TEAMS_TO_SCORE") {
+      const bothScored = homeS > 0 && awayS > 0;
+      let matched = false;
+      if (selectionId === "YES" && bothScored) matched = true;
+      if (selectionId === "NO" && !bothScored) matched = true;
+      return {
+        text: `FT: ${ftDisplay}. Both Scored: ${bothScored ? "Yes" : "No"}`,
+        state: f.status === "FT" ? (matched ? "WON" : "LOST") : "LIVE"
+      };
+      
+    } else if (marketType === "OVER_UNDER_GOALS") {
+      const totalGoals = homeS + awayS;
+      const [mode, lineStr] = selectionId.split("_");
+      const line = parseFloat(lineStr.replace("_", "."));
+      let matched = false;
+      if (mode === "OVER" && totalGoals > line) matched = true;
+      if (mode === "UNDER" && totalGoals < line) matched = true;
+      return {
+        text: `FT: ${ftDisplay} (${totalGoals} goals). Prediction: Over/Under ${line}`,
+        state: f.status === "FT" ? (matched ? "WON" : "LOST") : "LIVE"
+      };
+      
+    } else if (marketType === "OVER_UNDER_CORNERS" || marketType === "OVER_UNDER_CARDS" || marketType === "OVER_UNDER_SAVES") {
+      let val = 0;
+      let statName = "";
+      let line = 0;
+      
+      if (marketType === "OVER_UNDER_CORNERS") { 
+        val = (f.stats?.home.corners || 0) + (f.stats?.away.corners || 0); 
+        statName = "Corners";
+        line = f.odds.overUnderCorners?.line || 9.5;
+      }
+      if (marketType === "OVER_UNDER_CARDS") { 
+        val = (f.stats?.home.yellowCards || 0) + (f.stats?.home.redCards || 0) + (f.stats?.away.yellowCards || 0) + (f.stats?.away.redCards || 0); 
+        statName = "Cards"; 
+        line = f.odds.overUnderCards?.line || 3.5;
+      }
+      if (marketType === "OVER_UNDER_SAVES") { 
+        val = (f.stats?.home.saves || 0) + (f.stats?.away.saves || 0); 
+        statName = "Saves"; 
+        line = f.odds.overUnderSaves?.line || 7.5;
+      }
+      
+      let matched = false;
+      if (selectionId === "OVER" && val > line) matched = true;
+      if (selectionId === "UNDER" && val < line) matched = true;
+      
+      return {
+        text: `Total ${statName}: ${val}. Prediction: ${selectionId} ${line} ${matched ? "Hit!" : "Missed"}`,
+        state: f.status === "FT" ? (matched ? "WON" : "LOST") : "LIVE"
+      };
+      
     } else if (marketType === "EXACT_SCORE") {
       const actualScore = `${homeS}-${awayS}`;
       const matched = selectionId === actualScore;
       return {
-        text: `FT Score: ${homeS}-${awayS}. Prediction: ${selectionId} ${matched ? "Hit!" : "Missed"}`,
+        text: `FT Score: ${ftDisplay}. Prediction: ${selectionId} ${matched ? "Hit!" : "Missed"}`,
         state: f.status === "FT" ? (matched ? "WON" : "LOST") : "LIVE"
       };
 

@@ -2,7 +2,7 @@ import React from "react";
 
 export interface GameProps {
   balance: number;
-  onUpdateBalance: (newBalance: number) => void;
+  onUpdateBalance: (update: number | ((prev: number) => number)) => void;
   addLog: (
     game: string,
     amount: number,
