@@ -1,6 +1,8 @@
 import { Team, Player, Fixture, FixtureStatus, MatchStats, WeatherCondition } from "../types";
 import { getInitialTeams } from "./teams";
 import { generateMatchOdds } from "../engine/matchEngine";
+import { developPlayer } from "../utils/playerUtils";
+import { selectMatchWeather } from "../engine/weatherEngine";
 
 // Utility to shuffle an array
 function shuffleArray<T>(array: T[]): T[] {
@@ -14,12 +16,8 @@ function shuffleArray<T>(array: T[]): T[] {
   return arr;
 }
 
-export function generateRandomWeather(): WeatherCondition {
-  const rand = Math.random();
-  if (rand < 0.6) return "Clear Skies";
-  if (rand < 0.8) return "Pouring Rain";
-  if (rand < 0.9) return "Blizzard";
-  return "Heatwave";
+export function generateRandomWeather(isDerby = false): WeatherCondition {
+  return selectMatchWeather(isDerby);
 }
 
 export function createEmptyStats(): MatchStats {
@@ -305,4 +303,107 @@ export function initializeNewLeague(): { teams: Team[]; fixtures: Fixture[] } {
   }
   
   return { teams, fixtures };
+}
+
+// 6. Apply end-of-season relegation / promotion to team division flags
+export function applyRelegationPromotion(
+  teams: Team[],
+  seasonFixtures: Fixture[]
+): Team[] {
+  const seenIds = new Set(seasonFixtures.flatMap(f => [f.homeTeamId, f.awayTeamId]));
+  const points: Record<string, number> = {};
+  const gd: Record<string, number> = {};
+  seenIds.forEach(id => { points[id] = 0; gd[id] = 0; });
+
+  seasonFixtures.forEach(f => {
+    if (f.status !== "FT") return;
+    const h = Math.floor(f.homeScore);
+    const a = Math.floor(f.awayScore);
+    if (h > a) { points[f.homeTeamId] = (points[f.homeTeamId] || 0) + 3; }
+    else if (a > h) { points[f.awayTeamId] = (points[f.awayTeamId] || 0) + 3; }
+    else {
+      points[f.homeTeamId] = (points[f.homeTeamId] || 0) + 1;
+      points[f.awayTeamId] = (points[f.awayTeamId] || 0) + 1;
+    }
+    gd[f.homeTeamId] = (gd[f.homeTeamId] || 0) + (h - a);
+    gd[f.awayTeamId] = (gd[f.awayTeamId] || 0) + (a - h);
+  });
+
+  const seasonTeamsSorted = [...seenIds]
+    .map(id => ({ id, pts: points[id] ?? 0, gd: gd[id] ?? 0 }))
+    .sort((a, b) => b.pts - a.pts || b.gd - a.gd);
+
+  const relegatedIds = new Set(seasonTeamsSorted.slice(-3).map(t => t.id));
+  const promotedIds = new Set(seasonTeamsSorted.slice(0, 3).map(t => t.id));
+
+  const div2Pool = teams.filter(t => (t.division ?? 1) === 2 && !seenIds.has(t.id));
+  const shuffledDiv2 = [...div2Pool].sort(() => Math.random() - 0.5);
+  const incomingIds = new Set(shuffledDiv2.slice(0, 3).map(t => t.id));
+
+  return teams.map(t => {
+    if (relegatedIds.has(t.id)) return { ...t, division: 2 as const };
+    if (incomingIds.has(t.id)) return { ...t, division: 1 as const };
+    if (promotedIds.has(t.id) && (t.division ?? 1) === 2) return { ...t, division: 1 as const };
+    return t;
+  });
+}
+
+// 7. Start a new league season using updated division flags
+export function initializeNewLeagueSeason(allTeams: Team[]): { teams: Team[]; fixtures: Fixture[] } {
+  const div1Teams = allTeams.filter(t => (t.division ?? 1) === 1);
+  const shuffled = [...div1Teams].sort(() => Math.random() - 0.5);
+  const freshTeams: Team[] = shuffled.slice(0, 16).map(t => ({
+    ...t,
+    wonMatches: 0,
+    drawnMatches: 0,
+    lostMatches: 0,
+    goalsScored: 0,
+    goalsConceded: 0,
+    morale: 65,
+    players: t.players.map(p => {
+      const developed = developPlayer(p);
+      return {
+        ...developed,
+        fatigue: Math.max(0, (p.fatigue || 0) - 40),
+        injuryRecoveryMatches: 0,
+        injured: false,
+        suspendedRounds: 0,
+        injuredRounds: 0,
+      };
+    }),
+  }));
+
+  const fixtures: Fixture[] = [];
+  const n = freshTeams.length;
+  const rotation = [...freshTeams];
+
+  for (let round = 0; round < n - 1; round++) {
+    for (let i = 0; i < n / 2; i++) {
+      const home = rotation[i];
+      const away = rotation[n - 1 - i];
+      const finalHome = (round + i) % 2 === 0 ? home : away;
+      const finalAway = (round + i) % 2 === 0 ? away : home;
+      const odds = generateMatchOdds(finalHome, finalAway);
+      const weather = generateRandomWeather();
+      fixtures.push({
+        id: `ls-r${round}-f${i}`,
+        homeTeamId: finalHome.id,
+        awayTeamId: finalAway.id,
+        roundIndex: round,
+        status: "SCHEDULED",
+        homeScore: 0,
+        awayScore: 0,
+        stats: createEmptyStats(),
+        events: [],
+        odds,
+        currentMinute: 0,
+        elapsedTicks: 0,
+        weather,
+      });
+    }
+    const last = rotation.pop()!;
+    rotation.splice(1, 0, last);
+  }
+
+  return { teams: freshTeams, fixtures };
 }

@@ -36,34 +36,34 @@ export function getLiveInPlayOdds(
 
   switch (marketType) {
     case "MATCH_WINNER": {
-      // Only suspend if a team is up by 4+ goals — a 3-goal deficit is unlikely but not impossible
-      if (Math.abs(scoreDiff) >= 4) {
-        // The WINNING side's odds remain available; only suspend the losing side
-        const losingIsHome = scoreDiff <= -4;
-        const losingIsAway = scoreDiff >= 4;
+      // Cap at 99.00 — never suspend as long as it's mathematically possible.
+      // Only suspend when score diff is 5+ goals (truly no way back) or match is FT.
+      const MAX_LIVE_ODDS = 99.00;
+      if (Math.abs(scoreDiff) >= 5) {
+        const losingIsHome = scoreDiff <= -5;
+        const losingIsAway = scoreDiff >= 5;
         if (losingIsHome && (selectionId === "HOME" || selectionId === "1")) return null;
         if (losingIsAway && (selectionId === "AWAY" || selectionId === "2")) return null;
         if (losingIsHome || losingIsAway) {
-          // Draw is effectively impossible too when 4 goals apart
           if (selectionId === "DRAW" || selectionId === "X") return null;
         }
       }
 
       if (selectionId === "HOME" || selectionId === "1") {
         if (scoreDiff > 0) {
-          // Home leading: odds drop dramatically as time decays
+          // Home leading: odds drop as time decays
           const leadMultiplier = 1 + scoreDiff * 3.0 + (min * 0.25);
           return Math.max(1.02, Math.min(baseOdds, baseOdds / leadMultiplier));
         } else if (scoreDiff < 0) {
-          // Home losing: odds rise as time expires — only suspend at extreme values (>250)
+          // Home losing: odds rise — cap at MAX_LIVE_ODDS, never suspend while time remains
           const deficit = Math.abs(scoreDiff);
           const timePlea = 1.05 / Math.max(0.01, timeFactor);
           const newOdds = baseOdds * (1 + deficit * 4.0) * timePlea;
-          return newOdds > 250 ? null : Number(newOdds.toFixed(2));
+          return Math.min(MAX_LIVE_ODDS, Number(newOdds.toFixed(2)));
         } else {
-          // Tied: odds drift up as time runs out (draw more likely)
+          // Tied: drift up toward draw
           const newOdds = baseOdds * (1.1 + (1 - timeFactor) * 1.5);
-          return newOdds > 250 ? null : Number(newOdds.toFixed(2));
+          return Math.min(MAX_LIVE_ODDS, Number(newOdds.toFixed(2)));
         }
       }
 
@@ -73,29 +73,27 @@ export function getLiveInPlayOdds(
           const leadMultiplier = 1 + Math.abs(scoreDiff) * 3.0 + (min * 0.25);
           return Math.max(1.02, Math.min(baseOdds, baseOdds / leadMultiplier));
         } else if (scoreDiff > 0) {
-          // Away losing: odds rise — only suspend at extreme values (>250)
+          // Away losing: odds rise — cap, never suspend
           const deficit = scoreDiff;
           const timePlea = 1.05 / Math.max(0.01, timeFactor);
           const newOdds = baseOdds * (1 + deficit * 4.0) * timePlea;
-          return newOdds > 250 ? null : Number(newOdds.toFixed(2));
+          return Math.min(MAX_LIVE_ODDS, Number(newOdds.toFixed(2)));
         } else {
-          // Tied: away win odds drift up
           const newOdds = baseOdds * (1.1 + (1 - timeFactor) * 1.5);
-          return newOdds > 250 ? null : Number(newOdds.toFixed(2));
+          return Math.min(MAX_LIVE_ODDS, Number(newOdds.toFixed(2)));
         }
       }
 
       if (selectionId === "DRAW" || selectionId === "X") {
         if (scoreDiff === 0) {
-          // Currently tie: odds drop as time decays (very likely to finish draw)
           return Math.max(1.05, Number((baseOdds * Math.max(0.1, timeFactor * 1.1)).toFixed(2)));
         } else {
-          // Currently not tied: odds to draw rise as time decays
+          // Draw still possible at any scoreline while time remains — cap, don't suspend
           const deficit = Math.abs(scoreDiff);
           const drawMultiplier = 1 + deficit * 3.5;
           const timeModifier = 1.25 / Math.max(0.02, timeFactor);
           const newOdds = baseOdds * drawMultiplier * timeModifier;
-          return newOdds > 250 ? null : Number(newOdds.toFixed(2));
+          return Math.min(MAX_LIVE_ODDS, Number(newOdds.toFixed(2)));
         }
       }
       break;

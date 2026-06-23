@@ -61,7 +61,24 @@ const rawTeamsData = [
   { id: "29", name: "Real Sociedad", shortName: "RSO", rating: 4.2, primaryColor: "#005CA9", secondaryColor: "#FFFFFF", region: "ESP", superstar: { name: "Takefusa Kubo", position: "ATT" as Position, rating: 87 } },
   { id: "30", name: "Atalanta", shortName: "ATA", rating: 4.3, primaryColor: "#0375B4", secondaryColor: "#111111", region: "ITA", superstar: { name: "Ademola Lookman", position: "ATT" as Position, rating: 89 } },
   { id: "31", name: "AFC Bournemouth", shortName: "BOU", rating: 4.0, primaryColor: "#CC0000", secondaryColor: "#111111", region: "ENG", superstar: { name: "Antoine Semenyo", position: "ATT" as Position, rating: 83 } },
-  { id: "32", name: "Crystal Palace", shortName: "CRY", rating: 4.1, primaryColor: "#004B93", secondaryColor: "#DA1A32", region: "ENG", superstar: { name: "Eberechi Eze", position: "MID" as Position, rating: 86 } }
+  { id: "32", name: "Crystal Palace", shortName: "CRY", rating: 4.1, primaryColor: "#004B93", secondaryColor: "#DA1A32", region: "ENG", superstar: { name: "Eberechi Eze", position: "MID" as Position, rating: 86 } },
+  // ─── Division 2 (lower league clubs eligible for promotion) ───────────────
+  { id: "33", name: "Stoke City", shortName: "STK", rating: 3.2, primaryColor: "#E03A3E", secondaryColor: "#1B3668", region: "ENG", superstar: { name: "Tom Ince", position: "ATT" as Position, rating: 76 } },
+  { id: "34", name: "Coventry City", shortName: "COV", rating: 3.3, primaryColor: "#87CEEB", secondaryColor: "#1E90FF", region: "ENG", superstar: { name: "Callum O'Hare", position: "MID" as Position, rating: 77 } },
+  { id: "35", name: "Leeds United", shortName: "LEE", rating: 3.5, primaryColor: "#FFFFFF", secondaryColor: "#1D428A", region: "ENG", superstar: { name: "Crysencio Summerville", position: "ATT" as Position, rating: 80 } },
+  { id: "36", name: "Sunderland", shortName: "SUN", rating: 3.1, primaryColor: "#EB172B", secondaryColor: "#111111", region: "ENG", superstar: { name: "Ellis Simms", position: "ATT" as Position, rating: 75 } },
+  { id: "37", name: "Swansea City", shortName: "SWA", rating: 3.0, primaryColor: "#FFFFFF", secondaryColor: "#111111", region: "ENG", superstar: { name: "Jerry Yates", position: "MID" as Position, rating: 74 } },
+  { id: "38", name: "Millwall", shortName: "MIL", rating: 3.0, primaryColor: "#001D5E", secondaryColor: "#FFFFFF", region: "ENG", superstar: { name: "Zian Flemming", position: "MID" as Position, rating: 75 } },
+  { id: "39", name: "Watford", shortName: "WAT", rating: 3.2, primaryColor: "#FBEE23", secondaryColor: "#ED2127", region: "ENG", superstar: { name: "Vakoun Bayo", position: "ATT" as Position, rating: 77 } },
+  { id: "40", name: "Preston North End", shortName: "PNE", rating: 3.0, primaryColor: "#FFFFFF", secondaryColor: "#1E48A2", region: "ENG", superstar: { name: "Emil Riis", position: "ATT" as Position, rating: 74 } },
+  { id: "41", name: "Middlesbrough", shortName: "MBR", rating: 3.3, primaryColor: "#EE3124", secondaryColor: "#111111", region: "ENG", superstar: { name: "Emmanuel Latte Lath", position: "ATT" as Position, rating: 78 } },
+  { id: "42", name: "Sheffield Wednesday", shortName: "SHW", rating: 3.1, primaryColor: "#0066CC", secondaryColor: "#FFFFFF", region: "ENG", superstar: { name: "Josh Windass", position: "ATT" as Position, rating: 75 } },
+  { id: "43", name: "Cardiff City", shortName: "CAR", rating: 2.9, primaryColor: "#0070B5", secondaryColor: "#FFFFFF", region: "ENG", superstar: { name: "Callum Robinson", position: "ATT" as Position, rating: 73 } },
+  { id: "44", name: "Hull City", shortName: "HUL", rating: 3.0, primaryColor: "#F5971D", secondaryColor: "#111111", region: "ENG", superstar: { name: "Oscar Estupinan", position: "ATT" as Position, rating: 74 } },
+  { id: "45", name: "Queens Park Rangers", shortName: "QPR", rating: 2.9, primaryColor: "#005CAB", secondaryColor: "#FFFFFF", region: "ENG", superstar: { name: "Lyndon Dykes", position: "ATT" as Position, rating: 73 } },
+  { id: "46", name: "Plymouth Argyle", shortName: "PLY", rating: 2.8, primaryColor: "#007B5E", secondaryColor: "#FFFFFF", region: "ENG", superstar: { name: "Morgan Whittaker", position: "MID" as Position, rating: 72 } },
+  { id: "47", name: "Oxford United", shortName: "OXF", rating: 2.8, primaryColor: "#F4C400", secondaryColor: "#0B2C6A", region: "ENG", superstar: { name: "Siriki Dembele", position: "ATT" as Position, rating: 71 } },
+  { id: "48", name: "Bristol City", shortName: "BSC", rating: 2.9, primaryColor: "#CC0000", secondaryColor: "#FFFFFF", region: "ENG", superstar: { name: "Tommy Conway", position: "ATT" as Position, rating: 73 } },
 ];
 
 // Helper to seed random details deterministically or pseudo-randomly
@@ -195,8 +212,8 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
       shooting: Math.max(50, Math.min(95, Math.round(midRating - 8 + (fSeed % 6)))),
       passing: Math.max(65, Math.min(99, Math.round(midRating + 4 + (fSeed % 3)))),
       dribbling: Math.max(65, Math.min(99, Math.round(midRating + 3))),
-      defending: Math.max(45, Math.min(88, Math.round(midRating - 12))),
-      physical: Math.max(55, Math.min(92, Math.round(midRating - 5)))
+      defending: Math.max(40, Math.min(80, Math.round(midRating - 12 + (fSeed % 5)))),
+      physical: Math.max(55, Math.min(92, Math.round(midRating - 3 + (fSeed % 4))))
     };
 
     players.push({
@@ -220,25 +237,15 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
     });
   }
 
-  // 4 Attackers (ATT)
-  for (let i = 10; i <= 13; i++) {
-    if (superstar.position === "ATT" && i === 10) {
-      const superRating = superstar.rating;
-      const superAbils = {
-        pace: Math.max(75, Math.min(99, Math.round(superRating + 2))),
-        shooting: Math.max(75, Math.min(99, Math.round(superRating + 3))),
-        passing: Math.max(65, Math.min(95, Math.round(superRating - 5))),
-        dribbling: Math.max(75, Math.min(99, Math.round(superRating + 2))),
-        defending: Math.max(25, Math.min(70, Math.round(superRating - 40))),
-        physical: Math.max(65, Math.min(97, Math.round(superRating - 2)))
-      };
-
+  // 3 Attackers (ATT)
+  for (let i = 19; i <= 21; i++) {
+    if (i === 19 && superstar.position === "ATT") {
       players.push({
         id: `${startId}-${i}`,
         name: superstar.name,
         teamId,
         position: "ATT",
-        rating: superRating,
+        rating: superstar.rating,
         age: generatePlayerAge("ATT"),
         fatigue: 0,
         injured: false,
@@ -250,7 +257,14 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
         yellowCards: 0,
         redCards: 0,
         matchesPlayed: 0,
-        abilities: superAbils
+        abilities: {
+          pace: Math.min(99, superstar.rating + 2),
+          shooting: Math.min(99, superstar.rating + 3),
+          passing: Math.max(60, superstar.rating - 5),
+          dribbling: Math.min(99, superstar.rating + 1),
+          defending: Math.max(20, superstar.rating - 35),
+          physical: Math.max(55, superstar.rating - 5)
+        }
       });
       continue;
     }
@@ -295,8 +309,12 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
   return players;
 }
 
+export const DIV1_IDS = new Set(["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25","26","27","28","29","30","31","32"]);
+export const DIV2_IDS = new Set(["33","34","35","36","37","38","39","40","41","42","43","44","45","46","47","48"]);
+
 export function getInitialTeams(): Team[] {
   return rawTeamsData.map(rt => {
+    const div: 1 | 2 = DIV1_IDS.has(rt.id) ? 1 : 2;
     return {
       id: rt.id,
       name: rt.name,
@@ -312,6 +330,7 @@ export function getInitialTeams(): Team[] {
       goalsConceded: 0,
       morale: 60,
       rivalClubIds: [],
+      division: div,
     };
   });
 }

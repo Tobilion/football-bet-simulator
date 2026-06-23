@@ -1,14 +1,17 @@
 import React, { useState, useMemo } from "react";
-import { PurchasedItem, LuxuryItem, LuxuryCategory } from "../types";
+import { PurchasedItem, LuxuryItem, LuxuryCategory, Team } from "../types";
 import { STORE_ITEMS } from "../data/luxuryItems";
 import { InfoButton } from "./ui/InfoButton";
 import { Skeleton } from "./ui/Skeleton";
+import { formatMoney } from "../utils";
 
 interface VIPStoreProps {
   balance: number;
   purchasedItems: PurchasedItem[];
-  onPurchase: (itemDetails: Omit<PurchasedItem, "dateStr" | "id"> & { id: string }) => void;
+  onPurchase: (itemDetails: Omit<PurchasedItem, "dateStr" | "id"> & { id: string; teamId?: string }) => void;
   onLiquidate: (item: PurchasedItem) => void;
+  teams?: Team[];
+  ownedTeamId?: string;
 }
 
 const CATEGORIES = ["All", ...Array.from(new Set(STORE_ITEMS.map(i => i.category)))];
@@ -20,9 +23,16 @@ const RarityColors: Record<string, string> = {
   "Legendary": "bg-amber-500/20 text-amber-500 border-amber-500/50 shadow-[0_0_8px_rgba(245,158,11,0.4)] animate-[pulse_2s_ease-in-out_infinite]"
 };
 
-export const VIPStore: React.FC<VIPStoreProps> = ({ balance, purchasedItems, onPurchase, onLiquidate }) => {
+export const VIPStore: React.FC<VIPStoreProps> = ({ balance, purchasedItems, onPurchase, onLiquidate, teams = [], ownedTeamId }) => {
   const [activeTab, setActiveTab] = useState<"store" | "inventory">("store");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [clubPickerItem, setClubPickerItem] = useState<LuxuryItem | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
+
+  // Teams available to purchase (no existing ownership, div 2 for cheap tier, div 1 for expensive)
+  const purchasableTeams = useMemo(() => {
+    return teams.filter(t => !t.ownership && t.id !== ownedTeamId);
+  }, [teams, ownedTeamId]);
 
   const totalWorth = purchasedItems.reduce((sum, item) => sum + item.worth, 0);
 
@@ -124,16 +134,31 @@ export const VIPStore: React.FC<VIPStoreProps> = ({ balance, purchasedItems, onP
                   <div className="p-2.5 bg-black/45 rounded-xl space-y-1.5">
                     <div className="flex justify-between text-[10px]">
                       <span className="text-slate-500">Acquisition Cost:</span>
-                      <span className="font-bold text-amber-500">${item.price.toLocaleString()}</span>
+                      <span className="font-bold text-amber-500">{formatMoney(item.price)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-slate-500">Resale Value:</span>
+                      <span className="font-bold text-slate-400">{formatMoney(Math.floor(item.price * 0.85))}</span>
                     </div>
                   </div>
 
                   <button
-                    onClick={() => onPurchase({ ...item, worth: Math.floor(item.price * 0.85), icon: item.imageUrl })}
-                    disabled={balance < item.price}
-                    className="w-full py-2 rounded-xl font-bold text-[10px] uppercase cursor-pointer disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-600 bg-amber-500 hover:bg-amber-444 text-amber-950 transition-colors shadow-lg active:scale-[0.98]"
+                    onClick={() => {
+                      if (item.category === "Football Clubs") {
+                        setClubPickerItem(item);
+                        setSelectedTeamId("");
+                      } else {
+                        onPurchase({ ...item, worth: Math.floor(item.price * 0.85), icon: item.imageUrl });
+                      }
+                    }}
+                    disabled={balance < item.price || (item.category === "Football Clubs" && !!ownedTeamId)}
+                    className="w-full py-2 rounded-xl font-bold text-[10px] uppercase cursor-pointer disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-600 bg-amber-500 hover:bg-amber-400 text-amber-950 transition-colors shadow-lg active:scale-[0.98]"
                   >
-                    {balance >= item.price ? "Acquire Asset" : "Insufficient Wallet"}
+                    {item.category === "Football Clubs" && ownedTeamId
+                      ? "Already Own a Club"
+                      : balance >= item.price
+                        ? item.category === "Football Clubs" ? "Choose Club →" : "Acquire Asset"
+                        : "Insufficient Wallet"}
                   </button>
                 </div>
               </div>
@@ -180,32 +205,106 @@ export const VIPStore: React.FC<VIPStoreProps> = ({ balance, purchasedItems, onP
                          >
                            {item.rarity}
                          </span>
-                      )}
+                                        )}
                     </div>
-                    <p className="text-[9px] text-slate-500 font-mono">Acquired: {item.dateStr}</p>
-                  </div>
-                  
-                  <div className="mt-auto pt-4 border-t border-white/5 space-y-1 select-none">
-                    <div className="flex justify-between text-[10px] mb-1">
-                      <span className="text-slate-500">Paid:</span>
-                      <span className="text-slate-400 font-semibold">${item.price.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-[10px] font-bold">
-                      <span className="text-slate-400">Current Value:</span>
-                      <span className="text-emerald-450 font-mono">${item.worth.toLocaleString()}</span>
-                    </div>
+                    <p className="text-[10px] text-slate-500 line-clamp-2">{item.description}</p>
                   </div>
 
-                  <button
-                    onClick={() => onLiquidate(item)}
-                    className="mt-3 w-full py-2 cursor-pointer border border-rose-500/20 hover:bg-rose-500/10 text-rose-455 rounded-xl text-[10px] font-bold uppercase transition-all active:scale-[0.98]"
-                  >
-                    Liquidate Asset
-                  </button>
+                  <div className="mt-auto pt-3 space-y-2 select-none">
+                    <div className="flex justify-between text-[10px] text-slate-500">
+                      <span>Purchased</span>
+                      <span>{item.dateStr}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-slate-500">Resale Value</span>
+                      <span className="font-bold text-emerald-400">{formatMoney(item.worth)}</span>
+                    </div>
+                    <button
+                      onClick={() => onLiquidate(item)}
+                      className="w-full py-1.5 rounded-xl text-[10px] font-bold uppercase text-red-400 border border-red-500/20 hover:bg-red-500/10 cursor-pointer transition-all"
+                    >
+                      Liquidate Asset
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Club Picker Modal */}
+      {clubPickerItem && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center z-[200] p-4 animate-fade-in">
+          <div className="glass-panel border border-amber-500/30 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-black text-amber-400">Choose Your Club</h3>
+                <p className="text-xs text-slate-400">Select a team to purchase for {formatMoney(clubPickerItem.price)}</p>
+              </div>
+              <button onClick={() => setClubPickerItem(null)} className="text-slate-400 hover:text-white text-lg cursor-pointer">✕</button>
+            </div>
+
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {purchasableTeams.map(team => (
+                <button
+                  key={team.id}
+                  onClick={() => setSelectedTeamId(team.id)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                    selectedTeamId === team.id
+                      ? "border-amber-500/60 bg-amber-500/10"
+                      : "border-white/5 bg-white/3 hover:bg-white/5"
+                  }`}
+                >
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-[10px] font-black shrink-0"
+                    style={{ backgroundColor: team.primaryColor }}
+                  >
+                    {team.shortName.slice(0,2)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-slate-200 truncate">{team.name}</p>
+                    <p className="text-[9px] text-slate-500 font-mono">
+                      Div {team.division ?? 1} · Rating {team.rating.toFixed(1)} ⭐ · {team.players.length} players
+                    </p>
+                  </div>
+                  {selectedTeamId === team.id && (
+                    <span className="text-amber-400 text-xs font-black shrink-0">✓</span>
+                  )}
+                </button>
+              ))}
+              {purchasableTeams.length === 0 && (
+                <p className="text-xs text-slate-500 text-center py-6">No available teams to purchase.</p>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setClubPickerItem(null)}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 border border-white/10 hover:bg-white/5 cursor-pointer transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!selectedTeamId}
+                onClick={() => {
+                  if (!selectedTeamId) return;
+                  onPurchase({
+                    ...clubPickerItem,
+                    worth: Math.floor(clubPickerItem.price * 0.85),
+                    icon: clubPickerItem.imageUrl,
+                    teamId: selectedTeamId,
+                    name: `${teams.find(t => t.id === selectedTeamId)?.name ?? "Club"} — Ownership`,
+                  });
+                  setClubPickerItem(null);
+                  setSelectedTeamId("");
+                }}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-amber-950 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                Confirm Purchase
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

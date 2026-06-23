@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Tv, Calendar, Ticket, Users, BarChart3, Trophy, Award, Plus, RotateCcw, Activity, LogOut, Gamepad2, MessageSquare } from "lucide-react";
+import { Tv, Calendar, Ticket, Users, BarChart3, Trophy, Award, Plus, RotateCcw, Activity, LogOut, Gamepad2, MessageSquare, ShieldCheck } from "lucide-react";
 
 interface HeaderProps {
   activeTab: string;
@@ -11,6 +11,7 @@ interface HeaderProps {
   currentRoundLabel: string;
   gameMode: "TOURNAMENT" | "LEAGUE";
   exitToMenu: () => void;
+  hasOwnedClub?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -22,7 +23,8 @@ export const Header: React.FC<HeaderProps> = ({
   resetTournament,
   currentRoundLabel,
   gameMode,
-  exitToMenu
+  exitToMenu,
+  hasOwnedClub = false,
 }) => {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const tabs = [
@@ -32,6 +34,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: "feed", label: "Fan Feed", icon: <MessageSquare size={14} className="opacity-85" /> },
     { id: "store", label: "VIP Store", icon: <div className="text-amber-500 font-bold">🛒</div> },
     { id: "casino", label: "Elite Casino", icon: <Gamepad2 size={14} className="opacity-[0.95] text-amber-450" /> },
+    ...(hasOwnedClub ? [{ id: "myclub", label: "My Club", icon: <ShieldCheck size={14} className="text-emerald-400" /> }] : []),
     { id: "teams", label: "Teams", icon: <Users size={14} className="opacity-85" /> },
     { id: "analytics", label: "Analytics", icon: <BarChart3 size={14} className="opacity-85" /> },
     { id: "tournament", label: gameMode === "LEAGUE" ? "Standings" : "Tournament", icon: <Trophy size={14} className="opacity-85" /> },
@@ -54,22 +57,23 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Navigation tabs */}
-      <nav className="flex items-center overflow-x-auto no-scrollbar max-w-[50%] md:max-w-none h-full mx-2">
-        <div className="flex items-center gap-1">
+      <nav className="flex items-center overflow-x-auto no-scrollbar max-w-[45%] sm:max-w-[55%] md:max-w-none h-full mx-2">
+        <div className="flex items-center gap-0.5 md:gap-1">
           {tabs.map(tab => {
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 cursor-pointer ${
+                title={tab.label}
+                className={`flex items-center gap-1.5 px-2 md:px-3 py-2 md:py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 cursor-pointer min-w-[36px] min-h-[36px] justify-center md:justify-start ${
                   isActive
                     ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold shadow-[0_0_12px_rgba(16,185,129,0.15)]"
                     : "text-slate-300 hover:bg-white/5 hover:text-white border border-transparent"
                 }`}
               >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
+                <span className="shrink-0">{tab.icon}</span>
+                <span className="hidden md:inline">{tab.label}</span>
                 {tab.id === "live" && (
                   <span className="flex h-1.5 w-1.5 relative">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -83,17 +87,17 @@ export const Header: React.FC<HeaderProps> = ({
       </nav>
 
       {/* Profile & Wallet */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 md:gap-3">
         {/* Wallet Display */}
-        <div className="bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2">
-          <span className="text-[9px] font-mono text-slate-400 tracking-wider">WALLET:</span>
+        <div className="bg-white/5 px-2 md:px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-1.5 md:gap-2">
+          <span className="hidden sm:inline text-[9px] font-mono text-slate-400 tracking-wider">WALLET:</span>
           <span className="text-xs font-bold text-emerald-400 font-mono">
             ${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
           <button
             onClick={addFunds}
             title="Add +$1000.00 Funds"
-            className="ml-1.5 bg-emerald-500/20 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 p-0.5 px-1 rounded-md transition-all cursor-pointer flex items-center justify-center font-black text-[10px]"
+            className="ml-0.5 md:ml-1.5 bg-emerald-500/20 hover:bg-emerald-500 hover:text-slate-950 text-emerald-400 p-0.5 px-1 rounded-md transition-all cursor-pointer flex items-center justify-center font-black text-[10px] min-w-[24px] min-h-[24px]"
           >
             <Plus size={10} strokeWidth={3} />
           </button>
@@ -111,7 +115,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={() => setShowResetConfirm(true)}
           title="Restart Championship"
-          className="bg-red-500/10 hover:bg-red-500/30 text-red-400 p-1.5 rounded-lg border border-red-500/20 transition-all cursor-pointer text-xs animate-fade-in"
+          className="bg-red-500/10 hover:bg-red-500/30 text-red-400 p-2 rounded-lg border border-red-500/20 transition-all cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center"
         >
           <RotateCcw size={14} />
         </button>
@@ -120,7 +124,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={exitToMenu}
           title="Exit to Mode Selection"
-          className="bg-slate-500/15 hover:bg-slate-500/35 text-slate-300 hover:text-white p-1.5 rounded-lg border border-white/10 transition-all cursor-pointer text-xs"
+          className="bg-slate-500/15 hover:bg-slate-500/35 text-slate-300 hover:text-white p-2 rounded-lg border border-white/10 transition-all cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center"
         >
           <LogOut size={14} />
         </button>
@@ -166,7 +170,7 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         {/* User name badge */}
-        <div className="hidden md:flex items-center gap-2">
+                <div className="hidden md:flex items-center gap-2">
           <div className="h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center font-black text-slate-900 border border-emerald-400 shadow-lg shadow-emerald-500/20">
             {username.slice(0, 2).toUpperCase()}
           </div>

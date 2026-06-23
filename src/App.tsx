@@ -21,6 +21,7 @@ import { WelcomeScreen } from "./components/WelcomeScreen";
 import { LeagueStandings } from "./components/LeagueStandings";
 import { CasinoSuite } from "./components/CasinoSuite";
 import { VIPStore } from "./components/VIPStore";
+import { ClubManager } from "./components/ClubManager";
 import { SocialFeed } from "./components/SocialFeed";
 import { WalletModal } from "./components/modals/WalletModal";
 import { WinnerCelebrationModal } from "./components/modals/WinnerCelebrationModal";
@@ -31,6 +32,8 @@ import {
   initializeNewLeague,
   generateNextRoundFixtures,
   updateRostersAndStatsAfterFixture,
+  applyRelegationPromotion,
+  initializeNewLeagueSeason,
   ROUND_LABELS,
 } from "./data/tournament";
 import {
@@ -759,8 +762,25 @@ export default function App() {
         nextFixturesList,
         updatedTeamsList,
       );
+    } else if (gameMode === "LEAGUE") {
+      // League season finished — apply relegation/promotion then start a new season
+      setShowWinnerCelebration(true);
+      const allTeamsWithNewDivisions = applyRelegationPromotion(
+        [...teams, ...updatedTeamsList.filter(ut => !teams.find(t => t.id === ut.id))],
+        completedFixtures,
+      );
+      // Merge updated stats back into division-updated pool
+      const mergedAll = allTeamsWithNewDivisions.map(t => {
+        const updated = updatedTeamsList.find(u => u.id === t.id);
+        return updated ? { ...t, division: t.division } : t;
+      });
+      const { teams: newSeasonTeams, fixtures: newSeasonFixtures } = initializeNewLeagueSeason(mergedAll);
+      nextRoundIdx = 0;
+      updatedTeamsList = newSeasonTeams;
+      nextFixturesList = newSeasonFixtures;
+      nextTipsterTickets = generateTipsterBetsForRound(updatedTipsters, newSeasonFixtures, newSeasonTeams);
     } else {
-      // Final complete! Show Campaign Winner screen
+      // Tournament final — show winner screen
       setShowWinnerCelebration(true);
     }
 
@@ -893,13 +913,84 @@ export default function App() {
       dateStr: new Date().toLocaleDateString(),
       id: Math.random().toString(36).substring(7)
     };
+
+    // Special handling: Football Club purchases grant ownership of a real team
+    let nextTeams = teams;
+    if (itemDetails.category === "Football Clubs" && itemDetails.teamId) {
+      const targetTeam = teams.find(t => t.id === itemDetails.teamId);
+      if (targetTeam && !targetTeam.ownership) {
+        const defaultStarters = targetTeam.players.slice(0, 11).map(p => p.id);
+        nextTeams = teams.map(t => t.id === itemDetails.teamId ? {
+          ...t,
+          ownership: {
+            clubId: t.id,
+            purchasedAt: Date.now(),
+            purchasePrice: itemDetails.price,
+            trainingFacilityLevel: 1,
+            stadiumLevel: 1,
+            totalInvested: itemDetails.price,
+            passiveIncomePerMatch: 50000,
+            formation: "4-4-2" as const,
+            mentality: "Balanced" as const,
+            pressingStyle: "Mid Block" as const,
+            starterIds: defaultStarters,
+            matchesManaged: 0,
+            wins: 0,
+            draws: 0,
+            losses: 0,
+            totalGoalsFor: 0,
+            totalGoalsAgainst: 0,
+          }
+        } : t);
+        setTeams(nextTeams);
+      }
+    }
+
     const nextProfile: Profile = {
        ...userProfile,
        balance: userProfile.balance - itemDetails.price,
-       purchasedItems: [...(userProfile.purchasedItems || []), newItem]
+       purchasedItems: [...(userProfile.purchasedItems || []), newItem],
+       ownedTeamId: itemDetails.category === "Football Clubs" && itemDetails.teamId
+         ? itemDetails.teamId
+         : userProfile.ownedTeamId,
     };
     setUserProfile(nextProfile);
-    persistStateToCache(nextProfile, teams, fixtures, tipsters, tipsterTickets);
+    persistStateToCache(nextProfile, nextTeams, fixtures, tipsters, tipsterTickets);
+  };
+
+  const handleUpdateClubOwnership = (teamId: string, updates: Partial<import("./types").ClubOwnership>) => {
+    const nextTeams = teams.map(t => t.id === teamId && t.ownership
+      ? { ...t, ownership: { ...t.ownership, ...updates } }
+      : t
+    );
+    setTeams(nextTeams);
+    if (userProfile) persistStateToCache(userProfile, nextTeams, fixtures, tipsters, tipsterTickets);
+  };
+
+  const handleUpgradeFacility = (teamId: string, type: "training" | "stadium") => {
+    if (!userProfile) return;
+    const team = teams.find(t => t.id === teamId);
+    if (!team?.ownership) return;
+    const lvl = type === "training" ? team.ownership.trainingFacilityLevel : team.ownership.stadiumLevel;
+    const cost = type === "training" ? lvl * 2000000 : lvl * 5000000;
+    if (userProfile.balance < cost) return;
+    const newIncome = type === "stadium"
+      ? (lvl + 1) * 50000
+      : team.ownership.passiveIncomePerMatch;
+    const nextTeams = teams.map(t => t.id === teamId && t.ownership ? {
+      ...t,
+      ownership: {
+        ...t.ownership,
+        trainingFacilityLevel: type === "training" ? lvl + 1 : t.ownership.trainingFacilityLevel,
+        stadiumLevel: type === "stadium" ? lvl + 1 : t.ownership.stadiumLevel,
+        totalInvested: t.ownership.totalInvested + cost,
+        passiveIncomePerMatch: newIncome,
+      }
+    } : t);
+    const nextProfile: Profile = { ...userProfile, balance: userProfile.balance - cost };
+    setTeams(nextTeams);
+    setUserProfile(nextProfile);
+    persistStateToCache(nextProfile, nextTeams, fixtures, tipsters, tipsterTickets);
   };
 
   const handleLiquidateVIPItem = (item: any) => {
@@ -1088,6 +1179,11 @@ export default function App() {
       : ROUND_LABELS[userProfile?.currentRoundIndex || 0] ||
         "Session Concluded";
 
+  const handleNavigateToTeams = () => {
+    setGlobalEntity(null);
+    setActiveTab("teams");
+  };
+
   if (!gameMode || !userProfile) {
     const savedTournaments = [
       localStorage.getItem("fs_profile_v3_tournament_slot1") !== null ||
@@ -1182,6 +1278,7 @@ export default function App() {
         currentRoundLabel={currentRoundLabel}
         gameMode={gameMode}
         exitToMenu={exitToMenu}
+        hasOwnedClub={!!userProfile?.ownedTeamId}
       />
 
       {/* Main Workspace Frame container splits */}
@@ -1253,7 +1350,7 @@ export default function App() {
               />
             ) : (
               <TournamentBracket fixtures={fixtures} teams={teams} />
-            ))}
+                    ))}
 
           {activeTab === "leaderboard" && userProfile && (
             <Leaderboard
@@ -1279,7 +1376,24 @@ export default function App() {
                purchasedItems={userProfile.purchasedItems || []}
                onPurchase={handlePurchaseVIPItem}
                onLiquidate={handleLiquidateVIPItem}
+               teams={teams}
+               ownedTeamId={userProfile.ownedTeamId}
              />
+          )}
+
+          {activeTab === "myclub" && userProfile?.ownedTeamId && (
+            <ClubManager
+              ownedTeamId={userProfile.ownedTeamId}
+              teams={teams}
+              balance={userProfile.balance}
+              onUpdateOwnership={handleUpdateClubOwnership}
+              onUpgradeFacility={handleUpgradeFacility}
+              onUpdateBalance={(delta: number) => {
+                const nextProfile = { ...userProfile, balance: Math.max(0, userProfile.balance + delta) };
+                setUserProfile(nextProfile);
+                persistStateToCache(nextProfile, teams, fixtures, tipsters, tipsterTickets);
+              }}
+            />
           )}
 
           {activeTab === "feed" && userProfile && (
@@ -1292,7 +1406,7 @@ export default function App() {
         </main>
 
         {/* Collapsible right panel Betting Slip (Width 25%) */}
-        {activeTab !== "casino" && activeTab !== "store" && activeTab !== "feed" && (
+        {activeTab !== "casino" && activeTab !== "store" && activeTab !== "feed" && activeTab !== "myclub" && (
           <BettingSlip
             selections={selectedBets}
             fixtures={fixtures}
@@ -1308,38 +1422,28 @@ export default function App() {
         )}
       </div>
 
-      {/* WALLET DEPOSIT & WITHDRAWAL POPUP */}
       {showWalletModal && userProfile && (
         <WalletModal
           balance={userProfile.balance}
-          onConfirmTransaction={handleConfirmWalletTransaction}
+          onAction={handleWalletAction}
           onClose={() => setShowWalletModal(false)}
         />
       )}
 
-      {/* Crowning Champion Fullscreen modal overlay */}
-      {showWinnerCelebration && gameMode && userProfile && (
+      {showWinnerCelebration && (
         <WinnerCelebrationModal
-          gameMode={gameMode}
-          balance={userProfile.balance}
-          championName={getChampionshipWinnerTeamName().name}
-          championCrest={getChampionshipWinnerTeamName().crest}
+          winnerName={winnerName}
           onClose={() => setShowWinnerCelebration(false)}
-          onResetRound={handleResetAndGenerate}
         />
       )}
 
-      {/* GLOBAL HIGH-FIDELITY HOVER/TAP PREVIEW PORTAL MODAL */}
       {globalEntity && (
         <GlobalEntityPreviewModal
           globalEntity={globalEntity}
           teams={teams}
           onClose={() => setGlobalEntity(null)}
-          onChangeEntity={setGlobalEntity}
-          onNavigateToTeams={() => {
-            setGlobalEntity(null);
-            setActiveTab("teams");
-          }}
+          onChangeEntity={(entity) => setGlobalEntity(entity)}
+          onNavigateToTeams={handleNavigateToTeams}
         />
       )}
     </div>

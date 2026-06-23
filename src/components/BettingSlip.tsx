@@ -245,34 +245,52 @@ export const BettingSlip: React.FC<BettingSlipProps> = ({
 
   if (collapsed) {
     return (
-      <div className="fixed bottom-20 md:absolute md:-right-8 md:top-1/2 md:-translate-y-1/2 md:-rotate-90 right-4 flex items-center gap-2 z-50 pointer-events-none">
-        <button
-          id="betting-slip-toggle"
-          onClick={() => setCollapsed(false)}
-          className={`pointer-events-auto flex items-center shadow-emerald-500/20 font-black shrink-0 transition-all cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-slate-950 border border-emerald-400 ${selections.length > 0 ? "h-12 w-auto px-4 rounded-full gap-3 shadow-lg" : "h-12 w-12 rounded-full justify-center shadow-lg"}`}
-          title="Open Betting Slip"
-        >
-          <span>🎫</span>
-          {selections.length > 0 && (
-            <>
-              <div className="flex items-center gap-2 max-w-[150px] md:max-w-[200px] overflow-hidden whitespace-nowrap text-[10px] sm:text-xs font-sans font-bold text-left overflow-ellipsis mask-image-fade-right">
-                 {selections.map(s => s.selectionName).join(" • ")}
-              </div>
-              <span className="bg-red-500 text-white font-mono text-[10px] sm:text-xs h-5 sm:h-6 w-5 sm:w-6 rounded-full flex items-center justify-center font-bold shrink-0">
+      <>
+        {/* Mobile: bottom-center FAB */}
+        <div className="fixed bottom-5 right-4 md:hidden z-50">
+          <button
+            onClick={() => setCollapsed(false)}
+            className={`flex items-center gap-2 shadow-emerald-500/30 font-black transition-all cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-slate-950 border border-emerald-400 shadow-lg ${selections.length > 0 ? "h-12 px-4 rounded-full" : "h-12 w-12 rounded-full justify-center"}`}
+            title="Open Betting Slip"
+          >
+            <span>🎫</span>
+            {selections.length > 0 && (
+              <span className="bg-red-500 text-white font-mono text-[10px] h-5 w-5 rounded-full flex items-center justify-center font-bold shrink-0">
                 {selections.length}
               </span>
-            </>
-          )}
-        </button>
-      </div>
+            )}
+          </button>
+        </div>
+        {/* Desktop: rotated tab on edge */}
+        <div className="hidden md:flex absolute -right-8 top-1/2 -translate-y-1/2 -rotate-90 items-center gap-2 z-50 pointer-events-none">
+          <button
+            onClick={() => setCollapsed(false)}
+            className={`pointer-events-auto flex items-center gap-2 shadow-emerald-500/20 font-black shrink-0 transition-all cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-slate-950 border border-emerald-400 ${selections.length > 0 ? "h-10 w-auto px-4 rounded-full gap-3 shadow-lg" : "h-10 w-10 rounded-full justify-center shadow-lg"}`}
+            title="Open Betting Slip"
+          >
+            <span>🎫</span>
+            {selections.length > 0 && (
+              <span className="bg-red-500 text-white font-mono text-[10px] h-5 w-5 rounded-full flex items-center justify-center font-bold shrink-0">
+                {selections.length}
+              </span>
+            )}
+          </button>
+        </div>
+      </>
     );
   }
 
   return (
-    <aside
-      id="betting-slip"
-      className="w-[330px] shrink-0 glass-panel border-y-0 border-r-0 rounded-none h-full flex flex-col overflow-hidden select-none z-40 transition-all duration-300 relative"
-    >
+    <>
+      {/* Mobile backdrop */}
+      <div
+        className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm"
+        onClick={() => setCollapsed(true)}
+      />
+      <aside
+        id="betting-slip"
+        className="fixed bottom-0 inset-x-0 h-[88vh] md:h-full md:static md:w-[330px] md:shrink-0 glass-panel border-y-0 md:border-r-0 rounded-t-2xl md:rounded-none flex flex-col overflow-hidden select-none z-40 transition-all duration-300"
+      >
       {/* Header element */}
       <div className="bg-white/5 p-3 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -574,22 +592,16 @@ export const BettingSlip: React.FC<BettingSlipProps> = ({
         <button
           onClick={handlePlaceBetClick}
           disabled={selections.length === 0}
-          className={`w-full py-2.5 rounded-xl text-xs font-black tracking-wide cursor-pointer transition-all duration-150 flex items-center justify-center gap-1 shadow-lg ${
-            selections.length === 0
-              ? "bg-slate-900 text-slate-600 border border-white/5 cursor-not-allowed"
-              : "bg-emerald-500 hover:bg-emerald-600 text-slate-950 hover:scale-[1.01] shadow-emerald-500/20"
+          className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+            selections.length > 0
+              ? "bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-500/20 active:scale-[0.98]"
+              : "bg-white/5 text-slate-500 cursor-not-allowed"
           }`}
         >
-          <span>🚀</span>
-          <span>
-            {betMode === "SINGLE" ? "PLACE SINGLE BETS" : "PLACE ACCA TICKET"}
-          </span>
+          {selections.length === 0 ? "Add Selections to Slip" : `Place Bet${selections.length > 1 ? "s" : ""} →`}
         </button>
-
-        <div className="text-[9px] text-slate-500 text-center font-mono leading-none">
-          Bets are saved to local profile and matches can be run live.
-        </div>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 };

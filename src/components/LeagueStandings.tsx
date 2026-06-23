@@ -86,9 +86,10 @@ export const LeagueStandings: React.FC<LeagueStandingsProps> = ({
             </thead>
             <tbody className="divide-y divide-white/5">
               {standings.map((team, idx) => {
-                const isCLSpot = idx < 4; // Top 4 UCL
-                const isELSpot = idx >= 4 && idx < 6; // Next 2 UEL
-                const isRelegation = idx >= 14; // Bottom 2 relegation
+                const n = standings.length;
+                const isCLSpot = idx < 4; // Top 4 → Champions League
+                const isELSpot = idx >= 4 && idx < 6; // Next 2 → Europa League
+                const isRelegation = idx >= n - 3; // Bottom 3 → relegated
 
                 let rankStyle = "bg-slate-800 text-slate-300";
                 if (isCLSpot) rankStyle = "bg-blue-500/20 text-blue-300 border border-blue-500/30 shadow-[0_0_8px_rgba(59,130,246,0.1)]";
@@ -153,7 +154,7 @@ export const LeagueStandings: React.FC<LeagueStandingsProps> = ({
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded bg-red-500/20 border border-red-500/30"></span>
-            Relegation Zone (Spots 15-16)
+            Relegation Zone (Bottom 3 → Div 2)
           </div>
         </div>
       </div>
@@ -394,10 +395,9 @@ export const LeagueStandings: React.FC<LeagueStandingsProps> = ({
                   </div>
                 </div>
               )}
-
             </div>
           </div>
-        );
+        )
       })()}
     </div>
   );

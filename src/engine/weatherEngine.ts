@@ -1,14 +1,15 @@
 import { WeatherCondition, WeatherModifiers } from "../types";
 
 export const WEATHER_CONDITIONS: { condition: WeatherCondition, weight: number }[] = [
-  { condition: "Clear Sky", weight: 30 },
-  { condition: "Overcast", weight: 20 },
-  { condition: "Light Rain", weight: 18 },
-  { condition: "Heavy Rain", weight: 10 },
-  { condition: "Thunderstorm", weight: 5 },
-  { condition: "Snow", weight: 5 },
-  { condition: "Fierce Wind", weight: 7 },
-  { condition: "Fierce Derby", weight: 5 } // Though normally selected by rivalry logic
+  { condition: "Clear Sky",    weight: 30 },
+  { condition: "Overcast",     weight: 18 },
+  { condition: "Light Rain",   weight: 16 },
+  { condition: "Heavy Rain",   weight: 10 },
+  { condition: "Thunderstorm", weight: 5  },
+  { condition: "Blizzard",     weight: 5  },
+  { condition: "Heatwave",     weight: 6  },
+  { condition: "Fierce Wind",  weight: 5  },
+  { condition: "Fierce Derby", weight: 5  } // Selected by rivalry logic
 ];
 
 export function selectMatchWeather(isDerby: boolean): WeatherCondition {
@@ -39,8 +40,10 @@ export function getWeatherModifiers(condition: WeatherCondition): WeatherModifie
       return { condition, yellowCardMultiplier: 1.35, goalProbabilityMultiplier: 0.75, foulRateMultiplier: 1.20, volatilityMultiplier: 1.30 };
     case "Thunderstorm":
       return { condition, yellowCardMultiplier: 1.10, goalProbabilityMultiplier: 0.60, foulRateMultiplier: 1.15, volatilityMultiplier: 1.50 };
-    case "Snow":
-      return { condition, yellowCardMultiplier: 1.10, goalProbabilityMultiplier: 0.70, foulRateMultiplier: 1.30, volatilityMultiplier: 1.40 };
+    case "Blizzard":
+      return { condition, yellowCardMultiplier: 1.10, goalProbabilityMultiplier: 0.65, foulRateMultiplier: 1.35, volatilityMultiplier: 1.45 };
+    case "Heatwave":
+      return { condition, yellowCardMultiplier: 1.20, goalProbabilityMultiplier: 1.05, foulRateMultiplier: 1.15, volatilityMultiplier: 1.20 };
     case "Fierce Wind":
       return { condition, yellowCardMultiplier: 1.0, goalProbabilityMultiplier: 0.85, foulRateMultiplier: 1.10, volatilityMultiplier: 1.30 };
     case "Fierce Derby":

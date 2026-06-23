@@ -32,7 +32,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
     riskProfile: "BALANCED", // default
     recentTips: tickets.slice(-2).map(t => {
       const selectionsStr = t.selections.map((sel: any) => `${sel.details} (@${sel.odds.toFixed(1)})`).join(" + ");
-      return `${t.type} Stake $${t.stake.toFixed(0)} @ odds ${t.totalOdds.toFixed(2)} [${t.status}]: ${selectionsStr}`;
+      return `${t.type} Stake $${t.stake.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} @ odds ${t.totalOdds.toFixed(2)} [${t.status}]: ${selectionsStr}`;
     })
   };
 

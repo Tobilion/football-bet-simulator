@@ -54,7 +54,7 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
 
   // Speed selection — default to broadcast (90s total watch time)
   const [speedMode, setSpeedMode] = useState<"broadcast" | "fast">("broadcast");
-  const speedMap = { "broadcast": 6000, "fast": 450 };
+  const speedMap = { "broadcast": 90000, "fast": 6000 };
 
   const triggerGlobalEntity = (type: "team" | "player", id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -475,7 +475,22 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
               </span>
               {selectedFixture.weather && (
                 <span className="text-[9px] text-sky-400 block uppercase font-bold font-mono mt-1">
-                  {selectedFixture.weather === "Clear Skies" ? "☀️" : selectedFixture.weather === "Pouring Rain" ? "🌧️" : selectedFixture.weather === "Blizzard" ? "❄️" : "🔥"} WEATHER MODIFIER: {selectedFixture.weather}
+                  {selectedFixture.weather === "Clear Sky" ? "☀️"
+                    : selectedFixture.weather === "Overcast" ? "🌥️"
+                    : selectedFixture.weather === "Light Rain" ? "🌦️"
+                    : selectedFixture.weather === "Heavy Rain" ? "🌧️"
+                    : selectedFixture.weather === "Thunderstorm" ? "⛈️"
+                    : selectedFixture.weather === "Blizzard" ? "❄️"
+                    : selectedFixture.weather === "Heatwave" ? "🔥"
+                    : selectedFixture.weather === "Fierce Wind" ? "💨"
+                    : selectedFixture.weather === "Fierce Derby" ? "⚔️" : "🌡️"
+                  }{" "}WEATHER: {selectedFixture.weather}
+                  {selectedFixture.weather === "Blizzard" && " · ↓Goals ↑Fouls"}
+                  {selectedFixture.weather === "Heavy Rain" && " · ↓Goals ↑Cards"}
+                  {selectedFixture.weather === "Thunderstorm" && " · ↓↓Goals ↑Chaos"}
+                  {selectedFixture.weather === "Heatwave" && " · ↑Late Goals"}
+                  {selectedFixture.weather === "Fierce Wind" && " · ↓Goals ↑Errors"}
+                  {selectedFixture.weather === "Fierce Derby" && " · ↑↑Cards ↑Intensity"}
                 </span>
               )}
               

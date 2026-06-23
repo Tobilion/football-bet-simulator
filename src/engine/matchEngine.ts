@@ -2,17 +2,31 @@ import { Fixture, Team, Player, MatchOdds, MatchEvent, MatchStats, Position } fr
 import { processFouls } from "./foulCardEngine";
 import { getWeatherModifiers } from "./weatherEngine";
 
-// Helper to calculate team average rating based on players
+// Helper to calculate team average rating based on players (base, no modifiers)
 export function calculateTeamRating(team: Team): number {
   if (team.players.length === 0) return 75;
   const sum = team.players.reduce((acc, p) => acc + p.rating, 0);
   return Math.round(sum / team.players.length);
 }
 
+// Fatigue + morale adjusted effective rating for in-match strength
+function calculateEffectiveTeamRating(team: Team): number {
+  if (team.players.length === 0) return 75;
+  const sum = team.players.reduce((acc, p) => {
+    // Fatigue above 50 degrades effective rating (max -10 at fatigue 100)
+    const fatiguePenalty = Math.max(0, ((p.fatigue || 0) - 50) * 0.2);
+    return acc + Math.max(50, p.rating - fatiguePenalty);
+  }, 0);
+  const baseAvg = sum / team.players.length;
+  // Morale centered at 60: +/-6 pts max effect
+  const moraleBonus = ((team.morale ?? 60) - 60) * 0.1;
+  return Math.round(baseAvg + moraleBonus);
+}
+
 // 1. Odds Generator for Fixture
 export function generateMatchOdds(homeTeam: Team, awayTeam: Team): MatchOdds {
-  const homeAvg = calculateTeamRating(homeTeam);
-  const awayAvg = calculateTeamRating(awayTeam);
+  const homeAvg = calculateEffectiveTeamRating(homeTeam);
+  const awayAvg = calculateEffectiveTeamRating(awayTeam);
   
   // Home advantage addition
   const homePower = homeAvg + 2;
@@ -249,9 +263,11 @@ export function getTeamActivePlayers(
   team: Team,
   events: any[]
 ): { onField: Player[]; bench: Player[]; redCards: Player[]; injured: Player[] } {
-  // Filter out pre-match suspended or injured players
+  // Filter out pre-match suspended or injured players (all injury fields)
   const availablePlayers = team.players.filter(
-    p => !(p.suspendedRounds && p.suspendedRounds > 0) && !(p.injuredRounds && p.injuredRounds > 0)
+    p => !(p.suspendedRounds && p.suspendedRounds > 0)
+      && !(p.injuredRounds && p.injuredRounds > 0)
+      && !(p.injured && (p.injuryRecoveryMatches || 0) > 0)
   );
 
   // GK is always starter (we should have 1)
@@ -323,8 +339,8 @@ export function simulateMatchTick(
     }
   };
 
-  const homeAvg = calculateTeamRating(homeTeam);
-  const awayAvg = calculateTeamRating(awayTeam);
+  const homeAvg = calculateEffectiveTeamRating(homeTeam);
+  const awayAvg = calculateEffectiveTeamRating(awayTeam);
 
   // Total ticks = 15. Each tick is 6 minutes of play. Extra Time is ticks 16-20.
   const tickDuration = 6;
@@ -428,9 +444,9 @@ export function simulateMatchTick(
     // Randomize the nature of the action
     let actionRand = Math.random();
     
-    if (updatedFixture.weather === "Pouring Rain") {
-      // Pouring rain increases the odds of a foul (which is at the upper end of the random scale)
-      actionRand = Math.min(1.0, actionRand + 0.20); 
+    if (updatedFixture.weather === "Heavy Rain") {
+      // Heavy rain increases the odds of a foul (which is at the upper end of the random scale)
+      actionRand = Math.min(1.0, actionRand + 0.20);
     } else if (updatedFixture.weather === "Blizzard") {
       actionRand = Math.min(1.0, actionRand + 0.15); // Blizzard shifts away from goals somewhat too
     }

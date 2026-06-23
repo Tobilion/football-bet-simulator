@@ -47,6 +47,10 @@ export interface Player {
   suspendedRounds?: number;
 }
 
+export type Formation = "4-4-2" | "4-3-3" | "3-5-2" | "4-2-3-1" | "5-3-2" | "3-4-3";
+export type Mentality = "Defensive" | "Balanced" | "Attacking" | "Ultra Attack";
+export type PressingStyle = "Low Press" | "Mid Block" | "High Press" | "Gegenpressing";
+
 export interface ClubOwnership {
   clubId: string;
   purchasedAt: number;
@@ -55,6 +59,17 @@ export interface ClubOwnership {
   stadiumLevel: number;
   totalInvested: number;
   passiveIncomePerMatch: number;
+  formation: Formation;
+  mentality: Mentality;
+  pressingStyle: PressingStyle;
+  starterIds: string[]; // 11 player IDs in starting XI
+  captainId?: string;
+  matchesManaged: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  totalGoalsFor: number;
+  totalGoalsAgainst: number;
 }
 
 export interface Team {
@@ -73,6 +88,10 @@ export interface Team {
   morale: number;
   rivalClubIds: string[];
   ownership?: ClubOwnership;
+  division?: 1 | 2; // 1 = top flight, 2 = lower division
+  stadiumName?: string;
+  city?: string;
+  country?: string;
 }
 
 export type FixtureStatus = "SCHEDULED" | "LIVE" | "FT";
@@ -173,9 +192,16 @@ export interface MatchOdds {
   }[];
 }
 
-export type WeatherCondition = 
-  'Clear Sky' | 'Clear Skies' | 'Overcast' | 'Light Rain' | 'Heavy Rain' | 'Pouring Rain' |
-  'Thunderstorm' | 'Snow' | 'Blizzard' | 'Heatwave' | 'Fierce Wind' | 'Fierce Derby';
+export type WeatherCondition =
+  | 'Clear Sky'
+  | 'Overcast'
+  | 'Light Rain'
+  | 'Heavy Rain'
+  | 'Thunderstorm'
+  | 'Blizzard'
+  | 'Heatwave'
+  | 'Fierce Wind'
+  | 'Fierce Derby';
 
 export interface WeatherModifiers {
   condition: WeatherCondition;
@@ -245,13 +271,15 @@ export interface Profile {
   createdTime: number;
   purchasedItems?: PurchasedItem[];
   bankrollHistory?: { timestamp: number; balance: number; detail: string }[];
+  ownedTeamId?: string; // ID of team they've purchased and manage
 }
 
 export type ItemRarity = 'Common' | 'Rare' | 'Ultra Rare' | 'Legendary';
-export type LuxuryCategory = 
-  'Hypercars' | 'Private Aviation' | 'Superyachts' | 
-  'Real Estate' | 'Watches' | 'Jewellery' | 
-  'Fashion' | 'Fine Art' | 'Spirits' | 'Experiences' | 'Cars' | 'Jets' | 'Yachts' | 'Devices' | 'Businesses';
+export type LuxuryCategory =
+  'Hypercars' | 'Private Aviation' | 'Superyachts' |
+  'Real Estate' | 'Watches' | 'Jewellery' |
+  'Fashion' | 'Fine Art' | 'Spirits' | 'Experiences' |
+  'Football Clubs' | 'Cars' | 'Jets' | 'Yachts' | 'Devices' | 'Businesses';
 
 export interface LuxuryItem {
   id: string;
@@ -313,39 +341,4 @@ export interface AuctionListing {
   bidder: string;
   roundsLeft: number;
   listedAt: number;
-}
-
-export interface ExchangeAsset {
-  id: string;
-  symbol: string;
-  name: string;
-  currentPrice: number;
-  initialPrice: number;
-  volatility: number;
-  assetClass: 'crypto' | 'stock' | 'commodity';
-  priceHistory: number[];
-  userHolding: number;
-}
-
-export interface LeaderboardEntry {
-  userId: string;
-  username: string;
-  totalWon: number;
-  totalWagered: number;
-  biggestWin: number;
-  roi: number;
-  winRate: number;
-  rank: number;
-}
-
-export type BetBuilderMarket = 
-  'match_result' | 'btts' | 'total_goals' | 
-  'first_scorer' | 'player_scorer' | 'total_cards' | 
-  'total_corners' | 'home_clean_sheet' | 'away_clean_sheet';
-
-export interface BetBuilderSelection {
-  matchId: string;
-  market: BetBuilderMarket;
-  selection: string;
-  rawOdds: number;
 }
