@@ -13,6 +13,7 @@ interface FixturesOddsProps {
   selectedBets: BetSelection[];
   onAddBetSelection: (selection: BetSelection) => void;
   onRemoveSelection: (fixtureId: string, marketType: MarketType, selectionId: string) => void;
+  ownedTeamId?: string;
 }
 
 export const FixturesOdds: React.FC<FixturesOddsProps> = ({
@@ -22,8 +23,13 @@ export const FixturesOdds: React.FC<FixturesOddsProps> = ({
   currentRoundLabel,
   selectedBets,
   onAddBetSelection,
-  onRemoveSelection
+  onRemoveSelection,
+  ownedTeamId
 }) => {
+  const applyOwnerBoost = (odds: number | null, isOwnerMatch: boolean): number | null => {
+    if (!odds || !isOwnerMatch) return odds;
+    return Math.round(odds * 1.05 * 100) / 100;
+  };
   // Filter scheduled fixtures of current round
   const roundFixtures = fixtures.filter(f => f.roundIndex === roundIndex);
   
@@ -108,23 +114,51 @@ export const FixturesOdds: React.FC<FixturesOddsProps> = ({
             const isHalfTimePause = fixture.status === "LIVE" && fixture.elapsedTicks >= 7 && sessionStorage.getItem(`ht_resume_${fixture.id}`) !== "true";
             const isLive = fixture.status === "LIVE" && !isHalfTimePause;
             const isBettingDisabled = isFT;
+            const isOwnerMatch = ownedTeamId
+              ? fixture.homeTeamId === ownedTeamId || fixture.awayTeamId === ownedTeamId
+              : false;
+            const ownedTeamObj = isOwnerMatch ? teams.find(t => t.id === ownedTeamId) : null;
             const getLiveOdds = (mType: MarketType, selId: string, base: number): number | null => {
-              return getLiveInPlayOdds(fixture, mType, selId, base);
+              const raw = getLiveInPlayOdds(fixture, mType, selId, base);
+              return applyOwnerBoost(raw, isOwnerMatch);
             };
 
             return (
               <div
                 key={fixture.id}
                 className={`glass-card rounded-2xl overflow-hidden flex flex-col justify-between transition-all duration-250 border ${
-                  isFT 
-                    ? "border-white/5 opacity-55" 
-                    : isLive 
-                    ? "border-red-500/30 shadow-sm" 
-                    : isHalfTimePause 
+                  isOwnerMatch
+                    ? "border-yellow-500/40 shadow-[0_0_18px_rgba(234,179,8,0.12)]"
+                    : isFT
+                    ? "border-white/5 opacity-55"
+                    : isLive
+                    ? "border-red-500/30 shadow-sm"
+                    : isHalfTimePause
                     ? "border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
                     : "border-white/5 hover:border-white/15 hover:bg-white/5"
                 }`}
               >
+                {/* Owner Insider Banner */}
+                {isOwnerMatch && ownedTeamObj && (
+                  <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-3 py-1.5 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-yellow-400 text-[10px]">&#x1F451;</span>
+                      <span className="text-[9px] font-black text-yellow-400 uppercase tracking-widest font-mono">
+                        YOUR CLUB · OWNER&apos;S VIEW
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[9px] font-mono">
+                      <span className="text-slate-400">
+                        Morale:{" "}
+                        <span className={`font-bold ${(ownedTeamObj.morale ?? 60) >= 70 ? "text-emerald-400" : (ownedTeamObj.morale ?? 60) >= 45 ? "text-yellow-400" : "text-red-400"}`}>
+                          {(ownedTeamObj.morale ?? 60) >= 70 ? "HIGH" : (ownedTeamObj.morale ?? 60) >= 45 ? "MID" : "LOW"}
+                        </span>
+                      </span>
+                      <span className="text-yellow-500/60 font-bold">+5% ODDS</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Match Card Header */}
                 <div className="bg-white/5 p-2 px-3 border-b border-white/5 flex items-center justify-between text-[11px] text-slate-400 select-none">
                   {/* Team strength difference / star ratings */}

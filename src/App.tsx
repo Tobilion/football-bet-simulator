@@ -26,6 +26,7 @@ import { SocialFeed } from "./components/SocialFeed";
 import { WalletModal } from "./components/modals/WalletModal";
 import { WinnerCelebrationModal } from "./components/modals/WinnerCelebrationModal";
 import { GlobalEntityPreviewModal } from "./components/modals/GlobalEntityPreviewModal";
+import { OwnerRevenueModal } from "./components/modals/OwnerRevenueModal";
 
 import {
   initializeNewTournament,
@@ -107,6 +108,11 @@ export default function App() {
 
   // Custom states for Wallet Modal
   const [showWalletModal, setShowWalletModal] = useState<boolean>(false);
+  const [ownerRevenueReport, setOwnerRevenueReport] = useState<{
+    revenue: number;
+    fixtures: { fixtureId: string; baseIncome: number; bonus: number; result: "WIN" | "DRAW" | "LOSS"; scoreline: string }[];
+    teamName: string;
+  } | null>(null);
 
   // Global Entity Hover/Tap Information Portal States
   const [globalEntity, setGlobalEntity] = useState<{
@@ -784,8 +790,34 @@ export default function App() {
       setShowWinnerCelebration(true);
     }
 
+    // Club ownership passive income
+    let ownershipRevenue = 0;
+    let ownershipRevenueDetail: { fixtureId: string; baseIncome: number; bonus: number; result: "WIN" | "DRAW" | "LOSS"; scoreline: string }[] = [];
+    if (userProfile.ownedTeamId) {
+      const ownedTeam = updatedTeamsList.find(t => t.id === userProfile.ownedTeamId);
+      if (ownedTeam?.ownership) {
+        const baseIncome = ownedTeam.ownership.passiveIncomePerMatch;
+        completedFixtures.forEach(fix => {
+          const isHome = fix.homeTeamId === userProfile.ownedTeamId;
+          const isAway = fix.awayTeamId === userProfile.ownedTeamId;
+          if (!isHome && !isAway) return;
+          const hScore = Math.floor(fix.homeScore);
+          const aScore = Math.floor(fix.awayScore);
+          const ownedScored = isHome ? hScore : aScore;
+          const oppScored = isHome ? aScore : hScore;
+          let result: "WIN" | "DRAW" | "LOSS" = "DRAW";
+          let bonus = 0;
+          if (ownedScored > oppScored) { result = "WIN"; bonus = Math.round(baseIncome * 0.25); }
+          else if (ownedScored < oppScored) { result = "LOSS"; bonus = -Math.round(baseIncome * 0.10); }
+          const earned = baseIncome + bonus;
+          ownershipRevenue += earned;
+          ownershipRevenueDetail.push({ fixtureId: fix.id, baseIncome, bonus, result, scoreline: isHome ? `${hScore}-${aScore}` : `${aScore}-${hScore}` });
+        });
+      }
+    }
+
     const nextBalance =
-      Math.round((userProfile.balance + totalWinPayoutSum) * 100) / 100;
+      Math.round((userProfile.balance + totalWinPayoutSum + ownershipRevenue) * 100) / 100;
 
     // Recalculate User Net profit
     const finalNetProfit = finalTickets.reduce((acc, t) => {
@@ -813,6 +845,11 @@ export default function App() {
 
     // Update States
     setUserProfile(nextProfile);
+      // Trigger ownership revenue modal
+      if (ownershipRevenue > 0 && ownershipRevenueDetail.length > 0 && userProfile.ownedTeamId) {
+        const ownedTeam = updatedTeamsList.find(t => t.id === userProfile.ownedTeamId);
+        setOwnerRevenueReport({ revenue: ownershipRevenue, fixtures: ownershipRevenueDetail, teamName: ownedTeam?.name || "Your Club" });
+      }
     setTeams(updatedTeamsList);
     setFixtures(nextFixturesList);
     setTipsters(updatedTipsters);
@@ -1307,6 +1344,7 @@ export default function App() {
               selectedBets={selectedBets}
               onAddBetSelection={handleAddBetSelection}
               onRemoveSelection={handleRemoveSelection}
+              ownedTeamId={userProfile.ownedTeamId}
             />
           )}
 
@@ -1425,7 +1463,7 @@ export default function App() {
       {showWalletModal && userProfile && (
         <WalletModal
           balance={userProfile.balance}
-          onAction={handleWalletAction}
+          onConfirmTransaction={handleConfirmWalletTransaction}
           onClose={() => setShowWalletModal(false)}
         />
       )}
@@ -1434,6 +1472,15 @@ export default function App() {
         <WinnerCelebrationModal
           winnerName={winnerName}
           onClose={() => setShowWinnerCelebration(false)}
+        />
+      )}
+
+      {ownerRevenueReport && (
+        <OwnerRevenueModal
+          teamName={ownerRevenueReport.teamName}
+          revenue={ownerRevenueReport.revenue}
+          fixtures={ownerRevenueReport.fixtures}
+          onClose={() => setOwnerRevenueReport(null)}
         />
       )}
 

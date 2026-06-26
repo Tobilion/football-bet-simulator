@@ -22,6 +22,7 @@ interface LiveMatchesProps {
   selectedBets: BetSelection[];
   onAddBetSelection: (sel: BetSelection) => void;
   onRemoveSelection: (fixId: string, type: string, selId: string) => void;
+  ownedTeamId?: string;
 }
 
 export const LiveMatches: React.FC<LiveMatchesProps> = ({
@@ -41,7 +42,8 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
   setSelectedFixtureId,
   selectedBets,
   onAddBetSelection,
-  onRemoveSelection
+  onRemoveSelection,
+  ownedTeamId
 }) => {
   // Filters active fixtures for current round
   const activeFixtures = fixtures.filter(f => f.roundIndex === roundIndex);
@@ -74,6 +76,12 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
 
   // Finds currently selected active fixture for the details viewer
   const selectedFixture = activeFixtures.find(f => f.id === selectedFixtureId) || activeFixtures[0];
+
+  // Owner match detection
+  const isOwnerMatchSelected = ownedTeamId
+    ? selectedFixture?.homeTeamId === ownedTeamId || selectedFixture?.awayTeamId === ownedTeamId
+    : false;
+  const ownedTeamObj = isOwnerMatchSelected ? teams.find(t => t.id === ownedTeamId) : null;
 
   // Auto scroll commentary container
   const commentaryEndRef = useRef<HTMLDivElement>(null);
@@ -494,7 +502,34 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
                 </span>
               )}
               
-              <div className="flex items-center justify-between px-3 mt-2">
+              {/* Owner Live Banner */}
+              {isOwnerMatchSelected && ownedTeamObj && (
+                <div className="mx-3 mt-2 bg-yellow-500/10 border border-yellow-500/25 rounded-xl px-3 py-2 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-yellow-400">&#x1F451;</span>
+                    <span className="text-[9px] font-black text-yellow-400 uppercase tracking-widest font-mono">
+                      YOUR CLUB · LIVE
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-[9px] font-mono">
+                    <span className="text-slate-400">
+                      Morale:{" "}
+                      <span className={`font-bold ${(ownedTeamObj.morale ?? 60) >= 70 ? "text-emerald-400" : (ownedTeamObj.morale ?? 60) >= 45 ? "text-yellow-400" : "text-red-400"}`}>
+                        {(ownedTeamObj.morale ?? 60) >= 70 ? "HIGH" : (ownedTeamObj.morale ?? 60) >= 45 ? "MID" : "LOW"}
+                      </span>
+                    </span>
+                    <span className="text-slate-400">
+                      Fatigue:{" "}
+                      <span className={`font-bold ${(ownedTeamObj.fatigue ?? 0) <= 30 ? "text-emerald-400" : (ownedTeamObj.fatigue ?? 0) <= 60 ? "text-yellow-400" : "text-red-400"}`}>
+                        {(ownedTeamObj.fatigue ?? 0) <= 30 ? "FRESH" : (ownedTeamObj.fatigue ?? 0) <= 60 ? "TIRED" : "SPENT"}
+                      </span>
+                    </span>
+                    <span className="text-yellow-500/60 font-bold">+5% ODDS</span>
+                  </div>
+                </div>
+              )}
+
+                            <div className="flex items-center justify-between px-3 mt-2">
                 <div 
                   onClick={(e) => triggerGlobalEntity("team", selectedFixture.homeTeamId, e)}
                   className="flex flex-col items-center max-w-[35%] cursor-help hover:text-emerald-400"
@@ -665,9 +700,10 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
                 <div>
                   <div className="text-[10px] text-slate-500 font-bold uppercase mb-2">1X2 Match Winner</div>
                   {(() => {
-                    const homeOdds = getLiveInPlayOdds(selectedFixture, "MATCH_WINNER", "HOME", selectedFixture.odds?.homeWin ?? 2.0);
-                    const drawOdds = getLiveInPlayOdds(selectedFixture, "MATCH_WINNER", "DRAW", selectedFixture.odds?.draw ?? 3.0);
-                    const awayOdds = getLiveInPlayOdds(selectedFixture, "MATCH_WINNER", "AWAY", selectedFixture.odds?.awayWin ?? 2.0);
+                    const boost = isOwnerMatchSelected ? 1.05 : 1;
+                    const homeOdds = (() => { const r = getLiveInPlayOdds(selectedFixture, "MATCH_WINNER", "HOME", selectedFixture.odds?.homeWin ?? 2.0); return r ? Math.round(r * boost * 100) / 100 : null; })();
+                    const drawOdds = (() => { const r = getLiveInPlayOdds(selectedFixture, "MATCH_WINNER", "DRAW", selectedFixture.odds?.draw ?? 3.0); return r ? Math.round(r * boost * 100) / 100 : null; })();
+                    const awayOdds = (() => { const r = getLiveInPlayOdds(selectedFixture, "MATCH_WINNER", "AWAY", selectedFixture.odds?.awayWin ?? 2.0); return r ? Math.round(r * boost * 100) / 100 : null; })();
                     
                     return (
                       <div className="grid grid-cols-3 gap-2">
@@ -703,8 +739,9 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
                 <div>
                   <div className="text-[10px] text-slate-500 font-bold uppercase mb-2">Both Teams To Score</div>
                   {(() => {
-                    const yesOdds = getLiveInPlayOdds(selectedFixture, "BOTH_TEAMS_TO_SCORE", "YES", selectedFixture.odds?.bothTeamsToScore?.yes ?? 1.90);
-                    const noOdds = getLiveInPlayOdds(selectedFixture, "BOTH_TEAMS_TO_SCORE", "NO", selectedFixture.odds?.bothTeamsToScore?.no ?? 1.90);
+                    const boost = isOwnerMatchSelected ? 1.05 : 1;
+                    const yesOdds = (() => { const r = getLiveInPlayOdds(selectedFixture, "BOTH_TEAMS_TO_SCORE", "YES", selectedFixture.odds?.bothTeamsToScore?.yes ?? 1.90); return r ? Math.round(r * boost * 100) / 100 : null; })();
+                    const noOdds = (() => { const r = getLiveInPlayOdds(selectedFixture, "BOTH_TEAMS_TO_SCORE", "NO", selectedFixture.odds?.bothTeamsToScore?.no ?? 1.90); return r ? Math.round(r * boost * 100) / 100 : null; })();
                     
                     return (
                       <div className="grid grid-cols-2 gap-2">
