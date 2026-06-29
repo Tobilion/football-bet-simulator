@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Tv, Calendar, Ticket, Users, BarChart3, Trophy, Award, Plus, RotateCcw, Activity, LogOut, Gamepad2, MessageSquare, ShieldCheck } from "lucide-react";
+import { Tv, Calendar, Ticket, Users, BarChart3, Trophy, Award, Plus, RotateCcw, Activity, LogOut, Gamepad2, MessageSquare, ShieldCheck, ArrowLeftRight } from "lucide-react";
 
 interface HeaderProps {
   activeTab: string;
@@ -35,6 +35,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: "store", label: "VIP Store", icon: <div className="text-amber-500 font-bold">🛒</div> },
     { id: "casino", label: "Elite Casino", icon: <Gamepad2 size={14} className="opacity-[0.95] text-amber-450" /> },
     ...(hasOwnedClub ? [{ id: "myclub", label: "My Club", icon: <ShieldCheck size={14} className="text-emerald-400" /> }] : []),
+    ...(hasOwnedClub ? [{ id: "transfers", label: "Transfers", icon: <ArrowLeftRight size={14} className="text-sky-400" /> }] : []),
     { id: "teams", label: "Teams", icon: <Users size={14} className="opacity-85" /> },
     { id: "analytics", label: "Analytics", icon: <BarChart3 size={14} className="opacity-85" /> },
     { id: "tournament", label: gameMode === "LEAGUE" ? "Standings" : "Tournament", icon: <Trophy size={14} className="opacity-85" /> },

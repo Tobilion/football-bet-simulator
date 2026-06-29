@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Team, Fixture } from "../types";
+import { getTeamForm } from "../utils/formUtils";
 import { TeamCrest } from "./TeamCrest";
 import { ChevronLeft, ChevronRight, Award, Calendar, CheckCircle, HelpCircle } from "lucide-react";
 
@@ -82,6 +83,7 @@ export const LeagueStandings: React.FC<LeagueStandingsProps> = ({
                 <th className="py-2.5 px-2 text-center w-10">L</th>
                 <th className="py-2.5 px-2 text-center w-16">GD</th>
                 <th className="py-2.5 px-3 text-center w-16 text-emerald-400 font-bold">Pts</th>
+                <th className="py-2.5 px-3 text-center w-28 text-slate-400">Form</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -135,6 +137,20 @@ export const LeagueStandings: React.FC<LeagueStandingsProps> = ({
 
                     {/* Points */}
                     <td className="py-3 px-3 text-center text-emerald-400 font-mono font-bold">{team.pts}</td>
+                    {/* Form */}
+                    <td className="py-3 px-3 text-center">
+                      <div className="flex items-center justify-center gap-0.5">
+                        {getTeamForm(team.id, fixtures, 5).map((result, i) => (
+                          <span
+                            key={i}
+                            title={result === "W" ? "Win" : result === "D" ? "Draw" : "Loss"}
+                            className={`w-3.5 h-3.5 rounded-full inline-block ${
+                              result === "W" ? "bg-emerald-500" : result === "D" ? "bg-yellow-400" : "bg-rose-500"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}

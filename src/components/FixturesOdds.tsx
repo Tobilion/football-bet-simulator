@@ -4,6 +4,7 @@ import { TeamCrest } from "./TeamCrest";
 import { Info, X } from "lucide-react";
 import { InfoButton } from "./InfoButton";
 import { getLiveInPlayOdds } from "../utils";
+import { getTeamForm, getHeadToHead, getTeamGoalAvg } from "../utils/formUtils";
 
 interface FixturesOddsProps {
   fixtures: Fixture[];
@@ -14,6 +15,7 @@ interface FixturesOddsProps {
   onAddBetSelection: (selection: BetSelection) => void;
   onRemoveSelection: (fixtureId: string, marketType: MarketType, selectionId: string) => void;
   ownedTeamId?: string;
+  onOpenBetBuilder?: (fixtureId: string) => void;
 }
 
 export const FixturesOdds: React.FC<FixturesOddsProps> = ({
@@ -24,7 +26,8 @@ export const FixturesOdds: React.FC<FixturesOddsProps> = ({
   selectedBets,
   onAddBetSelection,
   onRemoveSelection,
-  ownedTeamId
+  ownedTeamId,
+  onOpenBetBuilder,
 }) => {
   const applyOwnerBoost = (odds: number | null, isOwnerMatch: boolean): number | null => {
     if (!odds || !isOwnerMatch) return odds;
@@ -36,6 +39,7 @@ export const FixturesOdds: React.FC<FixturesOddsProps> = ({
   // Track which fixture's modal is currently open
   const [activeModalFixtureId, setActiveModalFixtureId] = useState<string | null>(null);
   const [activeModalTab, setActiveModalTab] = useState<"ALL" | "MAIN" | "GOALS" | "HALF" | "CORNER" | "CARDS">("ALL");
+  const [expandedFormFixtureId, setExpandedFormFixtureId] = useState<string | null>(null);
 
   const getTeam = (id: string): Team => {
     return teams.find(t => t.id === id) || teams[0];
@@ -233,6 +237,83 @@ export const FixturesOdds: React.FC<FixturesOddsProps> = ({
                   </div>
                 </div>
 
+                {/* Form & H2H strip */}
+                {(() => {
+                  const homeForm = getTeamForm(homeTeam.id, fixtures);
+                  const awayForm = getTeamForm(awayTeam.id, fixtures);
+                  const h2h = getHeadToHead(homeTeam.id, awayTeam.id, fixtures);
+                  const homeAvg = getTeamGoalAvg(homeTeam.id, fixtures);
+                  const awayAvg = getTeamGoalAvg(awayTeam.id, fixtures);
+                  const isExpanded = expandedFormFixtureId === fixture.id;
+                  const formDot = (r: "W"|"D"|"L") => (
+                    <span key={Math.random()} className={`inline-block w-4 h-4 rounded-full text-[8px] font-black flex items-center justify-center ${r==="W"?"bg-emerald-500/30 text-emerald-400 border border-emerald-500/50":r==="D"?"bg-yellow-500/30 text-yellow-400 border border-yellow-500/50":"bg-red-500/30 text-red-400 border border-red-500/50"}`}>{r}</span>
+                  );
+                  const toggleExpand = () => setExpandedFormFixtureId(isExpanded ? null : fixture.id);
+                  return (
+                    <div className="border-b border-white/5">
+                      {/* Collapsed row — always visible */}
+                      <button
+                        type="button"
+                        onClick={toggleExpand}
+                        className="w-full px-3 py-1.5 flex items-center justify-between gap-2 hover:bg-white/3 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="text-[9px] text-slate-500 font-mono font-bold uppercase shrink-0">{homeTeam.shortName}</span>
+                          <div className="flex gap-0.5">{homeForm.length ? homeForm.map((r,i) => <span key={i} className={`w-3.5 h-3.5 rounded-full text-[7px] font-black flex items-center justify-center ${r==="W"?"bg-emerald-500 text-white":r==="D"?"bg-yellow-500 text-white":"bg-red-500 text-white"}`}>{r}</span>) : <span className="text-[9px] text-slate-600">—</span>}</div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-[9px] font-mono font-bold text-slate-400">{h2h.played > 0 ? `${h2h.homeWins}-${h2h.draws}-${h2h.awayWins}` : "No H2H"}</span>
+                          <span className="text-[9px] text-slate-600 font-mono">H2H</span>
+                          <span className={`text-[9px] text-slate-400 ml-1 transition-transform ${isExpanded?"rotate-180":""}`}>▾</span>
+                        </div>
+                        <div className="flex items-center gap-1 min-w-0">
+                          <div className="flex gap-0.5 flex-row-reverse">{awayForm.length ? awayForm.map((r,i) => <span key={i} className={`w-3.5 h-3.5 rounded-full text-[7px] font-black flex items-center justify-center ${r==="W"?"bg-emerald-500 text-white":r==="D"?"bg-yellow-500 text-white":"bg-red-500 text-white"}`}>{r}</span>) : <span className="text-[9px] text-slate-600">—</span>}</div>
+                          <span className="text-[9px] text-slate-500 font-mono font-bold uppercase shrink-0">{awayTeam.shortName}</span>
+                        </div>
+                      </button>
+                      {/* Expanded detail */}
+                      {isExpanded && (
+                        <div className="px-3 pb-2.5 space-y-2 bg-white/[0.02]">
+                          {h2h.lastMeeting && (
+                            <p className="text-[9px] text-slate-400 font-mono text-center">Last meeting: <span className="text-white font-bold">{h2h.lastMeeting.scoreline}</span> · Round {h2h.lastMeeting.roundIndex + 1}</p>
+                          )}
+                          {/* H2H win% bar */}
+                          {h2h.played > 0 && (
+                            <div className="flex items-center gap-1.5 text-[9px] font-mono">
+                              <span className="text-emerald-400 font-bold w-8 text-right">{Math.round((h2h.homeWins/h2h.played)*100)}%</span>
+                              <div className="flex-1 h-1.5 rounded-full overflow-hidden flex bg-white/5">
+                                <div className="bg-emerald-500 h-full transition-all" style={{width:`${(h2h.homeWins/h2h.played)*100}%`}}></div>
+                                <div className="bg-yellow-500 h-full transition-all" style={{width:`${(h2h.draws/h2h.played)*100}%`}}></div>
+                                <div className="bg-red-500 h-full flex-1 transition-all"></div>
+                              </div>
+                              <span className="text-red-400 font-bold w-8">{Math.round((h2h.awayWins/h2h.played)*100)}%</span>
+                            </div>
+                          )}
+                          {/* Goal avgs */}
+                          <div className="grid grid-cols-2 gap-2 text-[9px] font-mono">
+                            <div className="bg-white/5 rounded-lg p-1.5 text-center">
+                              <p className="text-slate-500 uppercase">Avg scored/conceded</p>
+                              <p className="text-white font-bold">{homeAvg.scored} / <span className="text-red-400">{homeAvg.conceded}</span></p>
+                              <p className="text-slate-500 text-[8px]">{homeTeam.shortName} last 5</p>
+                            </div>
+                            <div className="bg-white/5 rounded-lg p-1.5 text-center">
+                              <p className="text-slate-500 uppercase">Avg scored/conceded</p>
+                              <p className="text-white font-bold">{awayAvg.scored} / <span className="text-red-400">{awayAvg.conceded}</span></p>
+                              <p className="text-slate-500 text-[8px]">{awayTeam.shortName} last 5</p>
+                            </div>
+                          </div>
+                          {/* Full form dots */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex gap-0.5">{homeForm.map((r,i) => <span key={i}>{formDot(r)}</span>)}</div>
+                            <span className="text-[8px] text-slate-600 font-mono">LAST 5</span>
+                            <div className="flex gap-0.5 flex-row-reverse">{awayForm.map((r,i) => <span key={i}>{formDot(r)}</span>)}</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* 1X2 market Betting buttons (Locked if FT or suspended) */}
                 {(() => {
                   const homeOdds = getLiveOdds("MATCH_WINNER", "HOME", fixture.odds.homeWin);
@@ -349,9 +430,14 @@ export const FixturesOdds: React.FC<FixturesOddsProps> = ({
                   >
                     <span>▶️ ALL MARKETS ({Object.keys(fixture.odds).length}+)</span>
                   </button>
-                  <span className="text-[9px] text-slate-500 font-mono font-bold select-none cursor-default">
-                    ID: {fixture.id}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onOpenBetBuilder?.(fixture.id)}
+                    disabled={isFT}
+                    className="text-[10px] text-amber-400 hover:text-amber-300 font-bold font-sans tracking-wide cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1"
+                  >
+                    ⚡ BET BUILDER
+                  </button>
                 </div>
               </div>
             );

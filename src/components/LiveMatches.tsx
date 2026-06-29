@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Fixture, Team, BetSelection } from "../types";
+import { calculateMOTM } from "../utils/motmUtils";
 import { TeamCrest } from "./TeamCrest";
 import { getLiveInPlayOdds } from "../utils";
+import { getTeamForm, getHeadToHead, getTeamGoalAvg } from "../utils/formUtils";
 import { MarketType } from "../types";
 
 interface LiveMatchesProps {
@@ -568,6 +570,66 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
               </div>
             </div>
 
+            {/* Form & H2H Strip */}
+            {(() => {
+              if (!selectedFixture) return null;
+              const hId = selectedFixture.homeTeamId;
+              const aId = selectedFixture.awayTeamId;
+              const homeForm = getTeamForm(hId, fixtures);
+              const awayForm = getTeamForm(aId, fixtures);
+              const h2h = getHeadToHead(hId, aId, fixtures);
+              const homeAvg = getTeamGoalAvg(hId, fixtures);
+              const awayAvg = getTeamGoalAvg(aId, fixtures);
+              const dot = (r: "W"|"D"|"L", i: number) => (
+                <span key={i} className={`w-4 h-4 rounded-full text-[7px] font-black flex items-center justify-center ${r==="W"?"bg-emerald-500 text-white":r==="D"?"bg-yellow-500 text-black":"bg-red-500 text-white"}`}>{r}</span>
+              );
+              return (
+                <div className="border-b border-white/5 bg-white/[0.02] px-4 py-2 flex items-center gap-3 text-[9px] font-mono select-none">
+                  {/* Home form */}
+                  <div className="flex flex-col items-center gap-1 min-w-0">
+                    <span className="text-slate-500 uppercase tracking-wider font-bold text-[8px]">Form</span>
+                    <div className="flex gap-0.5">{homeForm.length ? homeForm.map((r,i)=>dot(r,i)) : <span className="text-slate-600">—</span>}</div>
+                    <span className="text-slate-500 text-[8px]">{homeAvg.scored}G / <span className="text-red-400">{homeAvg.conceded}GA</span></span>
+                  </div>
+
+                  {/* H2H centre */}
+                  <div className="flex-1 flex flex-col items-center gap-1">
+                    <span className="text-slate-500 uppercase tracking-wider font-bold text-[8px]">H2H ({h2h.played} played)</span>
+                    {h2h.played > 0 ? (
+                      <>
+                        <div className="flex items-center gap-1 w-full max-w-[140px]">
+                          <span className="text-emerald-400 font-bold w-6 text-right">{h2h.homeWins}</span>
+                          <div className="flex-1 h-1.5 rounded-full overflow-hidden flex bg-white/5">
+                            <div className="bg-emerald-500 h-full" style={{width:`${(h2h.homeWins/h2h.played)*100}%`}}></div>
+                            <div className="bg-yellow-500 h-full" style={{width:`${(h2h.draws/h2h.played)*100}%`}}></div>
+                            <div className="bg-red-500 h-full flex-1"></div>
+                          </div>
+                          <span className="text-red-400 font-bold w-6">{h2h.awayWins}</span>
+                        </div>
+                        {h2h.lastMeeting && (
+                          <span className="text-slate-500 text-[8px]">Last: <span className="text-white font-bold">{h2h.lastMeeting.scoreline}</span> · R{h2h.lastMeeting.roundIndex+1}</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-slate-600">No previous meetings</span>
+                    )}
+                    <div className="flex gap-2 text-[8px] text-slate-500">
+                      <span className="text-emerald-400">Avg {homeAvg.scored}g</span>
+                      <span>vs</span>
+                      <span className="text-red-400">Avg {awayAvg.scored}g</span>
+                    </div>
+                  </div>
+
+                  {/* Away form */}
+                  <div className="flex flex-col items-center gap-1 min-w-0">
+                    <span className="text-slate-500 uppercase tracking-wider font-bold text-[8px]">Form</span>
+                    <div className="flex gap-0.5">{awayForm.length ? awayForm.map((r,i)=>dot(r,i)) : <span className="text-slate-600">—</span>}</div>
+                    <span className="text-slate-500 text-[8px]">{awayAvg.scored}G / <span className="text-red-400">{awayAvg.conceded}GA</span></span>
+                  </div>
+                </div>
+              );
+            })()}
+
             {isHalfTimePause ? (
               <div className="bg-black/60 aspect-[16/10] relative flex flex-col items-center justify-center overflow-hidden border-b border-emerald-500/30 p-6 shadow-inner animate-fade-in">
                 <h2 className="text-3xl font-black font-sans text-white tracking-widest uppercase text-center mb-2 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
@@ -808,6 +870,29 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
                   );
                 })
               )}
+              {isSelectedFT && (() => {
+                const motm = selectedFixture.motm ?? calculateMOTM(selectedFixture, teams);
+                if (!motm) return null;
+                const motmTeam = teams.find((t) => t.id === motm.teamId);
+                return (
+                  <div className="mt-4 mb-1 rounded-xl border border-yellow-500/40 bg-yellow-500/8 p-3.5 shadow-[0_0_16px_rgba(234,179,8,0.08)]">
+                    <p className="text-[9px] font-mono font-black uppercase tracking-widest text-yellow-400 mb-2">
+                      ⭐ Player of the Match
+                    </p>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-black text-white">{motm.playerName}</p>
+                        <p className="text-[10px] text-yellow-300/70 font-mono">{motmTeam?.shortName ?? motmTeam?.name ?? ""}</p>
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5 capitalize">{motm.reason}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-2xl font-black text-yellow-400 font-mono">{motm.score.toFixed(1)}</p>
+                        <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider">Match Rating</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
               <div ref={commentaryEndRef}></div>
             </div>
           </div>

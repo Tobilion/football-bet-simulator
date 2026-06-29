@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { BetTicket, Fixture, Team, MarketType } from "../types";
+import { calculateCashOutValue, isCashOutEligible, buildCurrentOddsMap } from "../utils/cashOutUtils";
 import { formatMoney } from "../utils";
 
 interface MyBetsProps {
@@ -283,35 +284,11 @@ export const MyBets: React.FC<MyBetsProps> = ({ tickets, fixtures, teams, balanc
                 netRet = ticket.cashedOutAmount - ticket.stake;
               }
 
-              let cashOutOffer = 0;
-              if (isPending) {
-                let combinedOddsLeft = 1;
-                let anyLost = false;
-                let allPending = true;
-                let allWon = true;
-
-                ticket.selections.forEach(sel => {
-                    const result = getSelectionResultText(sel.fixtureId, sel.marketType, sel.selectionId);
-                    if (result.state !== "PENDING" && result.state !== "SCHEDULED") allPending = false;
-                    if (result.state !== "WON" && result.state !== "WON_EARLY") allWon = false;
-                    if (result.state === "LOST" || result.state === "LOST_EARLY") anyLost = true;
-                    else if (result.state === "PENDING" || result.state === "LIVE") {
-                       combinedOddsLeft *= sel.odds;
-                    }
-                });
-                
-                if (anyLost) {
-                  cashOutOffer = 0;
-                } else if (allWon) {
-                   // Bet fully won, allow 100% immediate cash out before round completes.
-                  cashOutOffer = ticket.potentialPayout;
-                } else if (allPending) {
-                  cashOutOffer = ticket.stake; // 100% refund if not started
-                } else {
-                  const fairValue = ticket.potentialPayout / Math.max(1.01, combinedOddsLeft);
-                  cashOutOffer = Math.max(fairValue * 0.9, ticket.stake * 0.5);
-                }
-              }
+              const coEligible = isCashOutEligible(ticket, fixtures);
+              const coOddsMap = coEligible ? buildCurrentOddsMap(ticket, fixtures) : {};
+              const cashOutValue = coEligible
+                ? calculateCashOutValue(ticket, fixtures, coOddsMap)
+                : null;
 
               return (
                 <div
@@ -367,14 +344,11 @@ export const MyBets: React.FC<MyBetsProps> = ({ tickets, fixtures, teams, balanc
                         {ticket.status}
                       </span>
                       
-                      {/* Cash Out Button */}
-                      {isPending && cashOutOffer > 0 && onCashOut && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onCashOut(ticket.id, cashOutOffer); }}
-                          className="bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold text-[10px] uppercase px-3 py-1 rounded cursor-pointer transition-colors shadow-lg shadow-amber-500/20"
-                        >
-                          Cash Out ${formatMoney(cashOutOffer)}
-                        </button>
+                      {/* Live cash-out pip in header */}
+                      {coEligible && cashOutValue !== null && cashOutValue > 0 && (
+                        <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded animate-pulse">
+                          💰 LIVE CO
+                        </span>
                       )}
 
                       {/* Toggle Expand button display */}
@@ -384,6 +358,26 @@ export const MyBets: React.FC<MyBetsProps> = ({ tickets, fixtures, teams, balanc
                     </div>
                   </div>
 
+                  {/* ── Live Cash Out Banner ── */}
+                  {coEligible && cashOutValue !== null && onCashOut && (
+                    <div className={`px-4 py-2.5 flex items-center justify-between border-y ${cashOutValue >= ticket.stake ? "bg-emerald-500/8 border-emerald-500/20" : "bg-red-500/8 border-red-500/20"}`}>
+                      <div>
+                        <p className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider">
+                          ⚡ Live Cash Out Available
+                        </p>
+                        <p className="text-[9px] text-slate-500 font-mono">
+                          {cashOutValue < ticket.stake ? "⚠️ Below stake — losing position" : "Lock in profit · 8% margin applied"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onCashOut(ticket.id, cashOutValue)}
+                        className={`font-black text-sm px-5 py-1.5 rounded-xl cursor-pointer transition-colors shadow-lg ${cashOutValue >= ticket.stake ? "bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/20" : "bg-red-500/80 hover:bg-red-500 text-white shadow-red-500/20"}`}
+                      >
+                        CASH OUT ${formatMoney(cashOutValue)}
+                      </button>
+                    </div>
+                  )}
                   {/* Collapsed Selection indicator lines (Displays what teams were bet on when collapsed!) */}
                   {!isExpanded && (
                     <div className="px-3.5 pb-3 flex flex-wrap gap-2 pt-0.5 border-t border-dashed border-white/5">

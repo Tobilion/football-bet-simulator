@@ -1,60 +1,45 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
-type ToastType = 'success' | 'warning' | 'error' | 'info';
+export type ToastType = "goal" | "win" | "loss" | "cashout" | "transfer" | "info" | "tip";
 
-interface ToastOptions {
+export interface Toast {
   id: string;
-  message: string;
   type: ToastType;
-  duration?: number;
+  title: string;
+  message: string;
+  duration?: number; // ms, default 4000
 }
 
-// Global state for toasts
-let toastsList: ToastOptions[] = [];
-let listeners: ((toasts: ToastOptions[]) => void)[] = [];
+// ── Global singleton — call from anywhere without needing React ───────────────
+let _toasts: Toast[] = [];
+let _listeners: Array<(ts: Toast[]) => void> = [];
+const _notify = () => _listeners.forEach((l) => l([..._toasts]));
 
-const notifyListeners = () => {
-  listeners.forEach(listener => listener(toastsList));
+export const addToast = (toast: Omit<Toast, "id">): void => {
+  const id = Math.random().toString(36).slice(2, 9);
+  if (_toasts.length >= 4) _toasts = _toasts.slice(1);
+  _toasts = [..._toasts, { ...toast, id }];
+  _notify();
+  const dur = toast.duration ?? 4000;
+  if (dur > 0) setTimeout(() => removeToast(id), dur);
 };
 
-export const toast = {
-  show: (message: string, type: ToastType = 'info', duration: number = 3500) => {
-    const id = Math.random().toString(36).substring(2, 9);
-    // limit to 4
-    if (toastsList.length >= 4) {
-      toastsList = toastsList.slice(1);
-    }
-    toastsList = [...toastsList, { id, message, type, duration }];
-    notifyListeners();
-
-    if (duration > 0) {
-      setTimeout(() => {
-        toast.dismiss(id);
-      }, duration);
-    }
-  },
-  success: (message: string, duration?: number) => toast.show(message, 'success', duration),
-  error: (message: string, duration?: number) => toast.show(message, 'error', duration),
-  warning: (message: string, duration?: number) => toast.show(message, 'warning', duration),
-  info: (message: string, duration?: number) => toast.show(message, 'info', duration),
-  dismiss: (id: string) => {
-    toastsList = toastsList.filter(t => t.id !== id);
-    notifyListeners();
-  }
+export const removeToast = (id: string): void => {
+  _toasts = _toasts.filter((t) => t.id !== id);
+  _notify();
 };
 
-export const useToast = () => {
-  const [toasts, setToasts] = useState<ToastOptions[]>(toastsList);
+// ── Hook — subscribe a component to the global toast list ────────────────────
+export function useToast() {
+  const [toasts, setToasts] = useState<Toast[]>([..._toasts]);
 
   useEffect(() => {
-    const listener = (newToasts: ToastOptions[]) => {
-      setToasts(newToasts);
-    };
-    listeners.push(listener);
+    const listener = (ts: Toast[]) => setToasts(ts);
+    _listeners.push(listener);
     return () => {
-      listeners = listeners.filter(l => l !== listener);
+      _listeners = _listeners.filter((l) => l !== listener);
     };
   }, []);
 
-  return { toasts, toast };
-};
+  return { toasts, addToast, removeToast };
+}

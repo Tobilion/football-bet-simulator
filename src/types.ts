@@ -220,6 +220,14 @@ export interface CardTracker {
   isRedCarded: boolean;
 }
 
+export interface MOTMResult {
+  playerId: string;
+  playerName: string;
+  teamId: string;
+  score: number;
+  reason: string; // e.g. "2 goals, 1 assist"
+}
+
 export interface Fixture {
   id: string;
   homeTeamId: string;
@@ -237,6 +245,7 @@ export interface Fixture {
   weather: WeatherCondition;
   weatherModifiers?: WeatherModifiers;
   cardTrackers?: CardTracker[];
+  motm?: MOTMResult;
 }
 
 export interface BetSelection {
@@ -260,6 +269,25 @@ export interface BetTicket {
   // For single mode: maps selection key (fixtureId-marketType-selectionId) to individual stake
   selectionStakes?: { [selId: string]: number };
   cashedOutAmount?: number;
+  cashedOutRound?: number;
+}
+
+export interface BetBuilderSelection {
+  marketType: MarketType;
+  selectionId: string;
+  odds: number;
+  label: string;
+}
+
+export interface BetBuilderTicket {
+  id: string;
+  fixtureId: string;
+  selections: BetBuilderSelection[];
+  combinedOdds: number;
+  stake: number;
+  potentialPayout: number;
+  status: "PENDING" | "WON" | "LOST";
+  placedAt: number; // roundIndex
 }
 
 export interface Profile {
@@ -272,6 +300,7 @@ export interface Profile {
   purchasedItems?: PurchasedItem[];
   bankrollHistory?: { timestamp: number; balance: number; detail: string }[];
   ownedTeamId?: string; // ID of team they've purchased and manage
+  betBuilderTickets?: BetBuilderTicket[];
 }
 
 export type ItemRarity = 'Common' | 'Rare' | 'Ultra Rare' | 'Legendary';
@@ -341,4 +370,17 @@ export interface AuctionListing {
   bidder: string;
   roundsLeft: number;
   listedAt: number;
+}
+
+export interface TransferListing {
+  id: string;
+  playerId: string;
+  fromTeamId: string;
+  askingPrice: number;
+  listedAtRound: number;
+  expiresAtRound: number; // round when auction expires
+  status: "OPEN" | "SOLD" | "EXPIRED";
+  bids: { bidderId: string; amount: number }[];
+  highestBidder?: string;
+  finalPrice?: number;
 }

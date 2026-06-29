@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { BankrollChart } from "./charts/BankrollChart";
 import { Team, Player, Profile } from "../types";
 import { formatMoney } from "../utils";
 import { TeamCrest } from "./TeamCrest";
@@ -219,7 +220,26 @@ export const Analytics: React.FC<AnalyticsProps> = ({ teams, fixtures, userProfi
 
   return (
     <div className="flex-1 min-height-0 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 no-scrollbar max-h-none">
-      
+
+      {/* Bankroll Curve */}
+      {userProfile && (userProfile.bankrollHistory?.length ?? 0) >= 2 && (
+        <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-[9px] font-mono font-bold text-slate-500 uppercase tracking-widest">Bankroll Curve</p>
+              <p className="text-xs font-semibold text-slate-200 mt-0.5">Balance history across all activity</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[9px] text-slate-500 font-mono">Current</p>
+              <p className={`text-sm font-black font-mono ${userProfile.balance >= 1000 ? "text-emerald-400" : "text-red-400"}`}>
+                ${userProfile.balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
+          </div>
+          <BankrollChart history={userProfile.bankrollHistory} startingBalance={1000} />
+        </div>
+      )}
+
       {/* Tab Switcher for Primary Content */}
       <div className="flex bg-white/5 border border-white/10 rounded-xl p-1 mb-6 max-w-sm">
         <button
