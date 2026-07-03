@@ -1,5 +1,11 @@
 import { Profile, Team, Fixture, Tipster, BetTicket } from "../types";
 
+/** Bump when the persisted shape changes incompatibly; old saves are discarded. */
+export const SCHEMA_VERSION = 1;
+
+export const isSaveCompatible = (keys: { profile: string }): boolean =>
+  localStorage.getItem(`${keys.profile}_schema`) === String(SCHEMA_VERSION);
+
 export const getKeysForMode = (
   mode: "TOURNAMENT" | "LEAGUE",
   slotNum: number = 1,
@@ -26,6 +32,7 @@ export const persistStateToCache = (
 ) => {
   if (!gameMode) return;
   const keys = getKeysForMode(gameMode, activeSlot);
+  localStorage.setItem(`${keys.profile}_schema`, String(SCHEMA_VERSION));
   localStorage.setItem(keys.profile, JSON.stringify(updatedProfile));
   localStorage.setItem(keys.teams, JSON.stringify(updatedTeams));
   localStorage.setItem(keys.fixtures, JSON.stringify(updatedFixtures));

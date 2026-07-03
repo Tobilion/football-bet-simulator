@@ -54,10 +54,10 @@ export const SpinTheBottleGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
         setCommentary("❄️ UNFORTUNATE! The bottle froze on the center line! You lose your stake! 🏠 HOUSE WINS!!");
         addLog("Spin the Bottle", safeStake, 0, "LOSS", "Center Freeze — you lose");
       } else if (finalRes === betSide) {
-        const payout = safeStake * 2.2;
+        const payout = safeStake * 1.98;
         onUpdateBalance((prev) => prev + payout);
-        setCommentary(`🎉 EXCELLENT! Bottle nozzle points ${finalRes}! You won $${formatMoney(payout)} (2.2x)!`);
-        addLog("Spin the Bottle", safeStake, 2.2, "WIN", `Nozzle pointed ${finalRes}`);
+        setCommentary(`🎉 EXCELLENT! Bottle nozzle points ${finalRes}! You won $${formatMoney(payout)} (1.98x)!`);
+        addLog("Spin the Bottle", safeStake, 1.98, "WIN", `Nozzle pointed ${finalRes}`);
       } else {
         setCommentary(`💔 MISSED! Nozzle points ${finalRes}, but you backed ${betSide}.`);
         addLog("Spin the Bottle", safeStake, 0, "LOSS", `Nozzle pointed ${finalRes}`);

@@ -104,7 +104,7 @@ export function useSimulation(deps: UseSimulationDeps) {
 
     if (simTimerRef.current) clearInterval(simTimerRef.current);
 
-    simTimerRef.current = setInterval(() => {
+    const tickOnce = () => {
       const watchedFix = fixturesRef.current.find((f) => f.id === watchedId);
       if (!watchedFix || watchedFix.status === "FT") {
         setIsSimulating(false);
@@ -127,7 +127,9 @@ export function useSimulation(deps: UseSimulationDeps) {
         setIsSimulating(false);
         if (simTimerRef.current) clearInterval(simTimerRef.current);
       }
-    }, speedMs);
+    };
+    tickOnce(); // advance immediately so the match visibly starts
+    simTimerRef.current = setInterval(tickOnce, speedMs);
   };
 
   const handlePauseSimulation = () => {

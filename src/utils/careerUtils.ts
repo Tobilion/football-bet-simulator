@@ -26,7 +26,15 @@ export function buildSeasonRecord(
   mode: "TOURNAMENT" | "LEAGUE",
   seasonNumber: number,
 ): SeasonRecord {
-  const settled = userProfile.tickets.filter(
+  // Legacy bet-builder tickets count toward stats like regular tickets.
+  const legacyBB = (userProfile.betBuilderTickets || []).map((bb) => ({
+    status: bb.status,
+    stake: bb.stake,
+    potentialPayout: bb.potentialPayout,
+    cashedOutAmount: undefined as number | undefined,
+  }));
+  const allTickets = [...userProfile.tickets, ...legacyBB];
+  const settled = allTickets.filter(
     (t) => t.status === "WON" || t.status === "LOST" || t.status === "CASHED_OUT",
   );
   const won = settled.filter((t) => t.status === "WON");
@@ -47,7 +55,7 @@ export function buildSeasonRecord(
     startBalance: Math.round((userProfile.balance - netProfit) * 100) / 100,
     endBalance: userProfile.balance,
     netProfit: Math.round(netProfit * 100) / 100,
-    totalBetsPlaced: userProfile.tickets.length,
+    totalBetsPlaced: allTickets.length,
     totalBetsWon: won.length,
     winRate: settled.length > 0 ? Math.round((won.length / settled.length) * 100) : 0,
     biggestWin: Math.round(biggestWin * 100) / 100,

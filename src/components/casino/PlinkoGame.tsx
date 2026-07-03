@@ -10,12 +10,12 @@ export const PlinkoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addL
 
   const bins = [
     { multi: 15.0, label: "15x", color: "bg-red-500/20 border-red-500/40 text-red-400" },
-    { multi: 5.0, label: "5x", color: "bg-amber-500/20 border-amber-500/40 text-amber-400" },
-    { multi: 2.0, label: "2x", color: "bg-emerald-500/20 border-emerald-500/40 text-emerald-400" },
-    { multi: 0.5, label: "0.5x", color: "bg-slate-700/30 border-white/5 text-slate-400" },
-    { multi: 0.8, label: "0.8x", color: "bg-slate-700/30 border-white/5 text-slate-400" },
-    { multi: 2.0, label: "2x", color: "bg-emerald-500/20 border-emerald-500/40 text-emerald-400" },
-    { multi: 5.0, label: "5x", color: "bg-amber-500/20 border-amber-500/40 text-amber-400" },
+    { multi: 2.0, label: "2x", color: "bg-amber-500/20 border-amber-500/40 text-amber-400" },
+    { multi: 1.0, label: "1x", color: "bg-emerald-500/20 border-emerald-500/40 text-emerald-400" },
+    { multi: 0.36, label: "0.36x", color: "bg-slate-700/30 border-white/5 text-slate-400" },
+    { multi: 0.36, label: "0.36x", color: "bg-slate-700/30 border-white/5 text-slate-400" },
+    { multi: 1.0, label: "1x", color: "bg-emerald-500/20 border-emerald-500/40 text-emerald-400" },
+    { multi: 2.0, label: "2x", color: "bg-amber-500/20 border-amber-500/40 text-amber-400" },
     { multi: 15.0, label: "15x", color: "bg-red-500/20 border-red-500/40 text-red-400" }
   ];
 
@@ -53,7 +53,7 @@ export const PlinkoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addL
         onUpdateBalance((prev) => prev + winPayout);
 
         setCommentary(`💎 Landed in ${hitBin.label} bin! Return: $${formatMoney(winPayout)}`);
-        addLog("Golden Boot Plinko", safeStake, hitBin.multi, hitBin.multi >= 1.0 ? "WIN" : "LOSS", `Landed in ${hitBin.label} slot`);
+        addLog("Golden Boot Plinko", hitBin.multi >= 1.0 ? safeStake : safeStake * (1 - hitBin.multi), hitBin.multi, hitBin.multi >= 1.0 ? "WIN" : "LOSS", `Landed in ${hitBin.label} slot`);
       }
     }, 280);
   };

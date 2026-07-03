@@ -160,8 +160,8 @@ export const BetBuilder: React.FC<BetBuilderProps> = ({
         return (
           <div key={line} className="grid grid-cols-2 gap-1.5 items-center">
             <div className="text-[9px] text-slate-500 font-mono text-center col-span-2 -mb-1">Line {lineNum}</div>
-            {btn("OVER_UNDER_GOALS", `OVER_${line}`, `Over ${lineNum}`, overVal)}
-            {btn("OVER_UNDER_GOALS", `UNDER_${line}`, `Under ${lineNum}`, underVal)}
+            {btn("OVER_UNDER_GOALS", `OVER_${lineNum}`, `Over ${lineNum}`, overVal)}
+            {btn("OVER_UNDER_GOALS", `UNDER_${lineNum}`, `Under ${lineNum}`, underVal)}
           </div>
         );
       })}

@@ -6,19 +6,46 @@ const SYMBOLS = ["⚽","🏆","🥅","🎽","👟","🥋","🎯","💎","👑","
 // Prize table: match 3 of a symbol → prize multiplier
 const PRIZE_TABLE: Record<string,number> = { "💎": 50, "👑": 30, "⭐": 20, "🏆": 10, "⚽": 5, "🥅": 3, "🎯": 2, "🎽": 1.5, "👟": 1, "🥋": 0 };
 
-function genCard(): string[] {
+// House-edge tuned: a card wins with PLANT_PROB, and the winning symbol is drawn from a
+// weighted pool (jackpots rare, small prizes common). Cards are generated so NO symbol ever
+// reaches 3 by accident — the only possible triple is the intentionally planted one.
+// RTP = PLANT_PROB * weightedMean(prize) ≈ 0.335 * 2.84 ≈ 0.951.
+const PLANT_PROB = 0.335;
+const WIN_WEIGHTS: Record<string, number> = { "💎":1, "👑":2, "⭐":4, "🏆":10, "⚽":20, "🥅":40, "🎯":60, "🎽":70, "👟":80 };
+const WIN_SYMS = Object.keys(WIN_WEIGHTS);
+const WIN_TOTAL = WIN_SYMS.reduce((a, s) => a + WIN_WEIGHTS[s], 0);
+
+function pickWinSym(): string {
+  let r = Math.random() * WIN_TOTAL;
+  for (const s of WIN_SYMS) { r -= WIN_WEIGHTS[s]; if (r <= 0) return s; }
+  return WIN_SYMS[WIN_SYMS.length - 1];
+}
+
+// Fill `count` cells so no symbol reaches 3 total (given prior `existing` counts); never emit `exclude`.
+function fillNoTriple(count: number, existing: Record<string, number>, exclude?: string): string[] {
   const cells: string[] = [];
-  // Plant some wins
-  const hasWin = Math.random() < 0.45;
-  if (hasWin) {
-    const winSym = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
-    const winPositions = new Set<number>();
-    while (winPositions.size < 3) winPositions.add(Math.floor(Math.random() * 9));
-    for (let i = 0; i < 9; i++) cells.push(winPositions.has(i) ? winSym : SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]);
-  } else {
-    for (let i = 0; i < 9; i++) cells.push(SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]);
+  const counts: Record<string, number> = { ...existing };
+  for (let i = 0; i < count; i++) {
+    const avail = SYMBOLS.filter(s => s !== exclude && (counts[s] ?? 0) < 2);
+    const s = avail[Math.floor(Math.random() * avail.length)];
+    counts[s] = (counts[s] ?? 0) + 1;
+    cells.push(s);
   }
   return cells;
+}
+
+function genCard(): string[] {
+  if (Math.random() < PLANT_PROB) {
+    const winSym = pickWinSym();
+    const cells = [winSym, winSym, winSym, ...fillNoTriple(6, { [winSym]: 3 }, winSym)];
+    for (let i = cells.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cells[i], cells[j]] = [cells[j], cells[i]];
+    }
+    return cells;
+  }
+  // Losing card: every symbol capped at 2 → no possible triple.
+  return fillNoTriple(9, {});
 }
 
 function checkPrize(card: string[]): { symbol: string; count: number; multiplier: number } | null {
@@ -132,7 +159,7 @@ export const ScratchCardGame: React.FC<GameProps> = ({ balance, onUpdateBalance,
           🎴 REVEAL ALL
         </button>
       )}
-      <div className="text-[9px] text-slate-600 font-mono text-center">Match 3+ symbols • 45% win rate • Max 50x on 💎</div>
+      <div className="text-[9px] text-slate-600 font-mono text-center">Match 3+ symbols • ~33% win rate • Max 50x on 💎</div>
     </div>
   );
 };

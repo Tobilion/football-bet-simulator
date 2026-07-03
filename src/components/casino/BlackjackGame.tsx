@@ -77,7 +77,7 @@ export const BlackjackGame: React.FC<GameProps> = ({ balance, onUpdateBalance, a
 
   const resolveDealer = useCallback((pHand: Card[], currentDeck: Card[], currentStake: number, currentDealerHand: Card[]) => {
     const pVal = handValue(pHand);
-    let dHand = currentDealerHand.map(c => ({ ...c, hidden: false }));
+    let dHand: Card[] = currentDealerHand.map(c => ({ ...c, hidden: false }));
     let remDeck = [...currentDeck];
     while (handValue(dHand) < 17) { dHand = [...dHand, remDeck[0]]; remDeck = remDeck.slice(1); }
     setDealerHand(dHand);

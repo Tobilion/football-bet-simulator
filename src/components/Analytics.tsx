@@ -158,8 +158,14 @@ export const Analytics: React.FC<AnalyticsProps> = ({ teams, fixtures, userProfi
     }
     
     // Win Rate and Biggest Win
-    const completedTickets = userProfile.tickets.filter(t => t.status === "WON" || t.status === "LOST" || t.status === "CASHED_OUT");
-    const wonTickets = userProfile.tickets.filter(t => t.status === "WON" || t.status === "CASHED_OUT");
+    const legacyBB = (userProfile.betBuilderTickets || []).map(bb => ({
+      status: bb.status, stake: bb.stake, potentialPayout: bb.potentialPayout,
+      cashedOutAmount: undefined as number | undefined,
+      selections: bb.selections.map(s => ({ marketType: s.marketType })),
+    }));
+    const allT = [...userProfile.tickets, ...legacyBB] as typeof userProfile.tickets;
+    const completedTickets = allT.filter(t => t.status === "WON" || t.status === "LOST" || t.status === "CASHED_OUT");
+    const wonTickets = allT.filter(t => t.status === "WON" || t.status === "CASHED_OUT");
     const winRate = completedTickets.length > 0 ? ((wonTickets.length / completedTickets.length) * 100).toFixed(1) : "0.0";
     
     let biggestWin = 0;

@@ -2,6 +2,18 @@ import React, { useState } from "react";
 import { GameProps, StakeSlider } from "./shared";
 import { formatMoney } from "../../utils";
 
+// Weighted reels: premium symbols (Cup/Boot/Ball) are rare and pay; Whistle/Card are blanks.
+const REEL_WEIGHTS: Record<string, number> = { Cup: 4, Boot: 12, Ball: 18, Whistle: 20, Card: 26 };
+const TRIPLE_PAY: Record<string, number> = { Cup: 100, Boot: 50, Ball: 30, Whistle: 0, Card: 0 };
+const PAIR_PAY: Record<string, number> = { Cup: 4, Boot: 3, Ball: 2, Whistle: 0, Card: 0 };
+const REEL_SYMS = ["Cup", "Boot", "Ball", "Whistle", "Card"];
+const REEL_TOTAL = REEL_SYMS.reduce((a, s) => a + REEL_WEIGHTS[s], 0);
+function spinReel(): string {
+  let r = Math.random() * REEL_TOTAL;
+  for (const sym of REEL_SYMS) { r -= REEL_WEIGHTS[sym]; if (r <= 0) return sym; }
+  return REEL_SYMS[REEL_SYMS.length - 1];
+}
+
 export const FootballSlotsGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog }) => {
   const [stake, setStake] = useState<number>(() => Math.max(1, Math.min(50, Math.floor(balance))));
   const [reels, setReels] = useState<string[]>(["Cup", "Boot", "Ball"]);
@@ -26,30 +38,26 @@ export const FootballSlotsGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
     setTimeout(() => {
       setSpinning(false);
 
-      const r1 = symbolsSet[Math.floor(Math.random() * symbolsSet.length)];
-      const r2 = symbolsSet[Math.floor(Math.random() * symbolsSet.length)];
-      const r3 = symbolsSet[Math.floor(Math.random() * symbolsSet.length)];
+      const r1 = spinReel();
+      const r2 = spinReel();
+      const r3 = spinReel();
       const resultReels = [r1, r2, r3];
       setReels(resultReels);
 
-      if (r1 === r2 && r2 === r3) {
-        let multi = 15.0;
-        if (r1 === "Cup") multi = 100.0;
-        else if (r1 === "Boot") multi = 50.0;
-        else if (r1 === "Ball") multi = 30.0;
-        else if (r1 === "Whistle") multi = 20.0;
+      const tripleMulti = r1 === r2 && r2 === r3 ? TRIPLE_PAY[r1] ?? 0 : 0;
+      const matchedSym = r1 === r2 ? r1 : r2 === r3 ? r2 : r1 === r3 ? r1 : null;
+      const pairMulti = matchedSym ? PAIR_PAY[matchedSym] ?? 0 : 0;
 
-        const winVal = safeStake * multi;
+      if (tripleMulti > 0) {
+        const winVal = safeStake * tripleMulti;
         onUpdateBalance((prev) => prev + winVal);
-        setCommentary(`🎉 MEGA WIN! 3×${r1}! Won $${formatMoney(winVal)} (${multi}x)!`);
-        addLog("Football Slots", safeStake, multi, "WIN", `Hit 3 of a kind: ${r1}`);
-      } else if (r1 === r2 || r2 === r3 || r1 === r3) {
-        const matchedSym = r1 === r2 ? r1 : (r2 === r3 ? r2 : r3);
-        const multi = 3.0;
-        const winVal = safeStake * multi;
+        setCommentary(`🎉 MEGA WIN! 3×${r1}! Won $${formatMoney(winVal)} (${tripleMulti}x)!`);
+        addLog("Football Slots", safeStake, tripleMulti, "WIN", `Hit 3 of a kind: ${r1}`);
+      } else if (matchedSym && pairMulti > 0) {
+        const winVal = safeStake * pairMulti;
         onUpdateBalance((prev) => prev + winVal);
-        setCommentary(`🎉 WIN! Two-of-a-kind ${matchedSym}! Won $${formatMoney(winVal)} (${multi}x)!`);
-        addLog("Football Slots", safeStake, multi, "WIN", `Matched 2: ${matchedSym}`);
+        setCommentary(`🎉 WIN! Two-of-a-kind ${matchedSym}! Won $${formatMoney(winVal)} (${pairMulti}x)!`);
+        addLog("Football Slots", safeStake, pairMulti, "WIN", `Matched 2: ${matchedSym}`);
       } else {
         setCommentary("💔 No matching lines. Try another spin to hit the Cup jackpot (100x)!");
         addLog("Football Slots", safeStake, 0, "LOSS", "No matching lines");
@@ -79,7 +87,7 @@ export const FootballSlotsGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
       </div>
 
       <div className="bg-black/30 border border-white/5 rounded-xl p-2.5 grid grid-cols-4 gap-1 text-center select-none">
-        {[["3×Cup", "100x"], ["3×Boot", "50x"], ["3×Ball", "30x"], ["2×Any", "3x"]].map(([label, val]) => (
+        {[["3×Cup", "100x"], ["3×Boot", "50x"], ["3×Ball", "30x"], ["Pair Cup/Boot/Ball", "4/3/2x"]].map(([label, val]) => (
           <div key={label} className="bg-white/2 rounded-lg py-1.5 px-1">
             <div className="text-[9px] text-slate-400 font-mono">{label}</div>
             <div className="text-[11px] font-black text-amber-400 font-mono mt-0.5">{val}</div>

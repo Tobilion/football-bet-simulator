@@ -1,4 +1,5 @@
 import { BetBuilderSelection, BetBuilderTicket, Fixture, MarketType } from "../types";
+import { resolveSelection } from "./settlementEngine";
 
 /** Multiply odds with a 7%-per-extra-leg correlation discount */
 export function calculateBetBuilderOdds(selections: BetBuilderSelection[]): number {
@@ -42,66 +43,33 @@ export function validateBetBuilderSelections(
   return null;
 }
 
-/** Checks one selection against a completed fixture result */
-function checkSelection(sel: BetBuilderSelection, fixture: Fixture): boolean {
-  const hScore = Math.floor(fixture.homeScore);
-  const aScore = Math.floor(fixture.awayScore);
-
-  switch (sel.marketType) {
-    case "MATCH_WINNER": {
-      const outcome = hScore > aScore ? "HOME" : aScore > hScore ? "AWAY" : "DRAW";
-      return sel.selectionId === outcome;
-    }
-    case "DOUBLE_CHANCE": {
-      const outcome = hScore > aScore ? "HOME" : aScore > hScore ? "AWAY" : "DRAW";
-      if (sel.selectionId === "HOME_OR_DRAW") return outcome !== "AWAY";
-      if (sel.selectionId === "HOME_OR_AWAY") return outcome !== "DRAW";
-      if (sel.selectionId === "DRAW_OR_AWAY") return outcome !== "HOME";
-      return false;
-    }
-    case "BOTH_TEAMS_TO_SCORE": {
-      const both = hScore > 0 && aScore > 0;
-      return sel.selectionId === "YES" ? both : !both;
-    }
-    case "OVER_UNDER_GOALS": {
-      const total = hScore + aScore;
-      const [mode, lineStr] = sel.selectionId.split("_");
-      const line = parseFloat(lineStr.replace("_", "."));
-      return mode === "OVER" ? total > line : total < line;
-    }
-    case "EXACT_SCORE":
-      return sel.selectionId === `${hScore}-${aScore}`;
-    case "ANYTIME_GOALSCORER":
-      return fixture.events.some(
-        (ev) => ev.type === "GOAL" && ev.playerId === sel.selectionId,
-      );
-    case "OVER_UNDER_CORNERS": {
-      const total =
-        (fixture.stats?.home.corners ?? 0) + (fixture.stats?.away.corners ?? 0);
-      const [mode, lineStr] = sel.selectionId.split("_");
-      const line = parseFloat(lineStr);
-      return mode === "OVER" ? total > line : total < line;
-    }
-    case "OVER_UNDER_CARDS": {
-      const total =
-        (fixture.stats?.home.yellowCards ?? 0) +
-        (fixture.stats?.home.redCards ?? 0) +
-        (fixture.stats?.away.yellowCards ?? 0) +
-        (fixture.stats?.away.redCards ?? 0);
-      const [mode, lineStr] = sel.selectionId.split("_");
-      const line = parseFloat(lineStr);
-      return mode === "OVER" ? total > line : total < line;
-    }
-    default:
-      return false;
-  }
-}
-
 /** Settle a builder ticket against the completed fixture */
 export function settleBetBuilderTicket(
   ticket: BetBuilderTicket,
   fixture: Fixture,
 ): "WON" | "LOST" {
-  const allWon = ticket.selections.every((sel) => checkSelection(sel, fixture));
+  const allWon = ticket.selections.every((sel) => resolveSelection(sel, fixture) === "WON");
   return allWon ? "WON" : "LOST";
+}
+
+/**
+ * Combined accumulator odds with same-game-multi pricing:
+ * selections on the same fixture are combined with the correlation
+ * discount (7% per extra leg), then fixture groups multiply together.
+ */
+export function computeAccaOdds(
+  selections: { fixtureId: string; odds: number }[],
+): number {
+  const groups = new Map<string, number[]>();
+  for (const s of selections) {
+    const arr = groups.get(s.fixtureId) ?? [];
+    arr.push(s.odds);
+    groups.set(s.fixtureId, arr);
+  }
+  let total = 1;
+  for (const odds of groups.values()) {
+    if (odds.length === 1) { total *= odds[0]; continue; }
+    total *= calculateBetBuilderOdds(odds.map((o) => ({ odds: o })) as BetBuilderSelection[]);
+  }
+  return Math.max(1.01, Math.round(total * 100) / 100);
 }

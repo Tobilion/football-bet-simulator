@@ -3,18 +3,18 @@ import { GameProps, StakeSlider } from "./shared";
 import { formatMoney } from "../../utils";
 
 const SEGMENTS = [
-  { label: "0.2x", multiplier: 0.2, color: "#ef4444", weight: 10 },
-  { label: "1.5x", multiplier: 1.5, color: "#f59e0b", weight: 20 },
-  { label: "2x", multiplier: 2, color: "#10b981", weight: 18 },
-  { label: "0x", multiplier: 0, color: "#1e293b", weight: 8 },
-  { label: "3x", multiplier: 3, color: "#8b5cf6", weight: 12 },
-  { label: "1x", multiplier: 1, color: "#64748b", weight: 20 },
-  { label: "5x", multiplier: 5, color: "#f97316", weight: 6 },
-  { label: "0.5x", multiplier: 0.5, color: "#0ea5e9", weight: 14 },
-  { label: "10x", multiplier: 10, color: "#ec4899", weight: 3 },
-  { label: "0x", multiplier: 0, color: "#1e293b", weight: 7 },
+  { label: "0.2x", multiplier: 0.2, color: "#ef4444", weight: 16 },
+  { label: "1.5x", multiplier: 1.5, color: "#f59e0b", weight: 6 },
+  { label: "2x", multiplier: 2, color: "#10b981", weight: 7 },
+  { label: "0x", multiplier: 0, color: "#1e293b", weight: 17 },
+  { label: "3x", multiplier: 3, color: "#8b5cf6", weight: 2 },
+  { label: "1x", multiplier: 1, color: "#64748b", weight: 13 },
+  { label: "5x", multiplier: 5, color: "#f97316", weight: 1 },
+  { label: "0.5x", multiplier: 0.5, color: "#0ea5e9", weight: 17 },
+  { label: "10x", multiplier: 10, color: "#ec4899", weight: 1 },
+  { label: "0x", multiplier: 0, color: "#1e293b", weight: 15 },
   { label: "20x", multiplier: 20, color: "#fcd34d", weight: 1 },
-  { label: "4x", multiplier: 4, color: "#34d399", weight: 5 },
+  { label: "4x", multiplier: 4, color: "#34d399", weight: 1 },
 ];
 
 const TOTAL_WEIGHT = SEGMENTS.reduce((s, seg) => s + seg.weight, 0);
@@ -55,15 +55,15 @@ export const WheelOfWealthGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
       setSpinning(false); setResult(seg);
       const payout = safeStake * seg.multiplier;
       if (payout > 0) onUpdateBalance(p => p + payout);
-      if (seg.multiplier >= 2) {
-        setMessage(`✅ ${seg.label}! Win $${formatMoney(payout)}!`);
+      if (seg.multiplier > 1) {
+        setMessage(`✅ ${seg.label}! Win $${formatMoney(payout)} (+$${formatMoney(payout - safeStake)} profit)!`);
         addLog("Wheel of Wealth", safeStake, seg.multiplier, "WIN", `${seg.label} segment`);
       } else if (seg.multiplier === 1) {
         setMessage(`🤝 1x — Stake returned!`);
         addLog("Wheel of Wealth", safeStake, 1, "WIN", "Returned stake");
       } else {
-        setMessage(`❌ ${seg.label} — Lost $${formatMoney(safeStake - payout)}.`);
-        addLog("Wheel of Wealth", safeStake, seg.multiplier, "LOSS", `${seg.label} segment`);
+        setMessage(`❌ ${seg.label} — Lost $${formatMoney(safeStake - payout)}${payout > 0 ? ` (got $${formatMoney(payout)} back)` : ""}.`);
+        addLog("Wheel of Wealth", safeStake - payout, seg.multiplier, "LOSS", `${seg.label} segment`);
       }
     }, 4000);
   };

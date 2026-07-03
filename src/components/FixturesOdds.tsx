@@ -42,7 +42,7 @@ export const FixturesOdds: React.FC<FixturesOddsProps> = ({
   
   // Track which fixture's modal is currently open
   const [activeModalFixtureId, setActiveModalFixtureId] = useState<string | null>(null);
-  const [activeModalTab, setActiveModalTab] = useState<"ALL" | "MAIN" | "GOALS" | "HALF" | "CORNER" | "CARDS">("ALL");
+  const [activeModalTab, setActiveModalTab] = useState<"ALL" | "MAIN" | "GOALS" | "HALF" | "CORNERS" | "CARDS">("ALL");
   const [expandedFormFixtureId, setExpandedFormFixtureId] = useState<string | null>(null);
 
   const getTeam = (id: string): Team => {
@@ -582,17 +582,17 @@ export const FixturesOdds: React.FC<FixturesOddsProps> = ({
                         {["0.5", "1.5", "2.5", "3.5", "4.5"].map((line) => {
                           const ou = activeFixture.odds.overUnder as any;
                           const tLine = line.replace(".", "_");
-                          const liveOverOdds = getModalLiveOdds("OVER_UNDER_GOALS", `OVER_${tLine}`, ou[`over${tLine}`]);
-                          const liveUnderOdds = getModalLiveOdds("OVER_UNDER_GOALS", `UNDER_${tLine}`, ou[`under${tLine}`]);
+                          const liveOverOdds = getModalLiveOdds("OVER_UNDER_GOALS", `OVER_${line}`, ou[`over${tLine}`]);
+                          const liveUnderOdds = getModalLiveOdds("OVER_UNDER_GOALS", `UNDER_${line}`, ou[`under${tLine}`]);
                           return (
                             <div key={line} className="grid grid-cols-2 gap-2">
                               <button
                                 disabled={liveOverOdds === null}
-                                onClick={() => handleMarketClick(activeFixture, "OVER_UNDER_GOALS", `OVER_${tLine}`, liveOverOdds, `Over ${line} Goals`, `Over/Under`)}
+                                onClick={() => handleMarketClick(activeFixture, "OVER_UNDER_GOALS", `OVER_${line}`, liveOverOdds, `Over ${line} Goals`, `Over/Under`)}
                                 className={`py-3 px-4 rounded-lg flex items-center justify-between border cursor-pointer transition-all ${
                                   liveOverOdds === null
                                     ? "bg-black/40 border-transparent text-slate-600 cursor-not-allowed opacity-50"
-                                    : isSelected(activeFixture.id, "OVER_UNDER_GOALS", `OVER_${tLine}`)
+                                    : isSelected(activeFixture.id, "OVER_UNDER_GOALS", `OVER_${line}`)
                                     ? "bg-emerald-500/15 border-emerald-500 text-emerald-400 font-bold"
                                     : "bg-[#18212a] border-white/5 hover:bg-white/5 text-slate-300"
                                 }`}
@@ -602,11 +602,11 @@ export const FixturesOdds: React.FC<FixturesOddsProps> = ({
                               </button>
                               <button
                                 disabled={liveUnderOdds === null}
-                                onClick={() => handleMarketClick(activeFixture, "OVER_UNDER_GOALS", `UNDER_${tLine}`, liveUnderOdds, `Under ${line} Goals`, `Over/Under`)}
+                                onClick={() => handleMarketClick(activeFixture, "OVER_UNDER_GOALS", `UNDER_${line}`, liveUnderOdds, `Under ${line} Goals`, `Over/Under`)}
                                 className={`py-3 px-4 rounded-lg flex items-center justify-between border cursor-pointer transition-all ${
                                   liveUnderOdds === null
                                     ? "bg-black/40 border-transparent text-slate-600 cursor-not-allowed opacity-50"
-                                    : isSelected(activeFixture.id, "OVER_UNDER_GOALS", `UNDER_${tLine}`)
+                                    : isSelected(activeFixture.id, "OVER_UNDER_GOALS", `UNDER_${line}`)
                                     ? "bg-emerald-500/15 border-emerald-500 text-emerald-400 font-bold"
                                     : "bg-[#18212a] border-white/5 hover:bg-white/5 text-slate-300"
                                 }`}

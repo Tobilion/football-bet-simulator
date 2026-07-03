@@ -12,8 +12,8 @@ export const RedOrBlackGame: React.FC<GameProps> = ({ balance, onUpdateBalance, 
   const [lastDraw, setLastDraw] = useState<"RED" | "BLACK" | "JOKER" | null>(null);
   const [message, setMessage] = useState<string>("Choose Red or Black to begin a 4-round streak! Beware of the 2% Joker card.");
 
-  const ROUND_MULTIS = [2.4, 5.5, 12.0, 28.0];
-  const ROUND_LABELS_MULTI = ["2.4x", "5.5x", "12.0x", "28.0x"];
+  const ROUND_MULTIS = [2.0, 4.0, 8.2, 16.8];
+  const ROUND_LABELS_MULTI = ["2.0x", "4.0x", "8.2x", "16.8x"];
 
   const originalWagerRef = useRef<number>(0);
   const currentRoundRef = useRef<number>(0);

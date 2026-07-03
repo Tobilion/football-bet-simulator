@@ -292,7 +292,7 @@ export const LeagueStandings: React.FC<LeagueStandingsProps> = ({
         const awayTeam = teams.find(t => t.id === inspectedMatch.awayTeamId) || teams[1];
         const homeGoals = Math.floor(inspectedMatch.homeScore);
         const awayGoals = Math.floor(inspectedMatch.awayScore);
-        const goalEvents = inspectedMatch.events?.filter(e => e.type === "GOAL" || e.type === "PENALTY_GOAL") || [];
+        const goalEvents = inspectedMatch.events?.filter(e => e.type === "GOAL") || [];
 
         return (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-fade-in text-center select-none font-sans">

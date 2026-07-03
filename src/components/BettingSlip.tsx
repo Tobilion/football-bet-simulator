@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { computeAccaOdds } from "../utils/betBuilderUtils";
 import { BetSelection, Fixture, Team, MarketType } from "../types";
 import { formatMoney } from "../utils";
 import { Sparkles, Check, ChevronDown, ChevronUp } from "lucide-react";
@@ -145,7 +146,8 @@ export const BettingSlip: React.FC<BettingSlipProps> = ({
   };
 
   // Calculations for ACCUMULATOR
-  const totalAccaOdds = selections.reduce((acc, sel) => acc * sel.odds, 1);
+  const totalAccaOdds = computeAccaOdds(selections);
+  const hasSameGameMulti = new Set(selections.map((s) => s.fixtureId)).size < selections.length;
   const formattedAccaOdds = Math.round(totalAccaOdds * 100) / 100;
   const numAccaStake = parseFloat(accaStake) || 0;
   const accaPayout = Math.round(numAccaStake * formattedAccaOdds * 100) / 100;
@@ -553,7 +555,12 @@ export const BettingSlip: React.FC<BettingSlipProps> = ({
             </div>
             
             <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-400">Combined Odds:</span>
+              <span className="text-xs text-slate-400">
+                Combined Odds:
+                {hasSameGameMulti && (
+                  <span className="ml-1.5 text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-1 py-0.5 uppercase tracking-wide">SGM priced</span>
+                )}
+              </span>
               <span className="text-xs font-black text-emerald-400 font-mono">
                 @{formattedAccaOdds.toFixed(2)}
               </span>

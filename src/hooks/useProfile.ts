@@ -29,6 +29,9 @@ export function useProfile(deps: UseProfileDeps) {
     setUserProfile((prev) => {
       if (!prev) return prev;
       let nextBalance = typeof update === "function" ? update(prev.balance) : update;
+      if (!Number.isFinite(nextBalance)) return prev;
+      // Reject overdraws from stale-state double-clicks instead of clamping.
+      if (nextBalance < -1e-9) return prev;
       nextBalance = Math.max(0, nextBalance);
       const updated: Profile = {
         ...prev,

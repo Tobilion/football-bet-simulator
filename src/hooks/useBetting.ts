@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   BetSelection,
   BetBuilderSelection,
-  BetBuilderTicket,
   BetTicket,
   Fixture,
   MarketType,
@@ -11,6 +10,8 @@ import {
   Tipster,
 } from "../types";
 import { persistStateToCache } from "../utils/storage";
+import { credit, debit, round2 } from "../utils/wallet";
+import { computeAccaOdds } from "../utils/betBuilderUtils";
 import { addToast } from "../hooks/useToast";
 
 interface UseBettingDeps {
@@ -141,13 +142,25 @@ export function useBetting(deps: UseBettingDeps) {
     selectionStakes?: { [secId: string]: number },
   ) => {
     if (!userProfile) return;
-    if (userProfile.balance < totalStake) {
+    if (!Number.isFinite(totalStake) || totalStake <= 0) {
+      alert("Stake must be greater than zero.");
+      return;
+    }
+    if (type === "SINGLE" && selectionStakes) {
+      const sum = round2(Object.values(selectionStakes).reduce((a, b) => a + (b || 0), 0));
+      if (Math.abs(sum - totalStake) > 0.01) {
+        alert("Per-selection stakes must add up to the total stake.");
+        return;
+      }
+    }
+    const debited = debit(userProfile.balance, totalStake);
+    if (debited === null) {
       alert("Insufficient wallet balance!");
       return;
     }
 
-    const totalOdds =
-      Math.round(selectedBets.reduce((acc, b) => acc * b.odds, 1) * 100) / 100;
+    // Same-game-multi pricing: same-fixture legs get a correlation discount.
+    const totalOdds = computeAccaOdds(selectedBets);
 
     const newTicket: BetTicket = {
       id: `ticket-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -170,7 +183,7 @@ export function useBetting(deps: UseBettingDeps) {
       selectionStakes,
     };
 
-    const nextBalance = Math.round((userProfile.balance - totalStake) * 100) / 100;
+    const nextBalance = debited;
     const nextProfile: Profile = {
       ...userProfile,
       balance: nextBalance,
@@ -184,12 +197,14 @@ export function useBetting(deps: UseBettingDeps) {
 
   const handleCashOut = (ticketId: string, offerAmount: number) => {
     if (!userProfile) return;
+    const target = userProfile.tickets.find((t) => t.id === ticketId);
+    if (!target || target.status !== "PENDING") return; // guard against double cash-out
     const nextTickets = userProfile.tickets.map((t) =>
       t.id === ticketId && t.status === "PENDING"
         ? { ...t, status: "CASHED_OUT" as const, cashedOutAmount: offerAmount, cashedOutRound: userProfile.currentRoundIndex }
         : t,
     );
-    const nextBalance = Math.round((userProfile.balance + offerAmount) * 100) / 100;
+    const nextBalance = credit(userProfile.balance, offerAmount);
     const nextProfile: Profile = {
       ...userProfile,
       balance: nextBalance,
@@ -206,21 +221,32 @@ export function useBetting(deps: UseBettingDeps) {
     stake: number,
     combinedOdds: number,
   ): boolean => {
-    if (!userProfile || userProfile.balance < stake || stake <= 0) return false;
-    const ticket: BetBuilderTicket = {
-      id: `bb-${Date.now()}`,
-      fixtureId,
-      selections,
-      combinedOdds,
+    if (!userProfile) return false;
+    const bbDebited = debit(userProfile.balance, stake);
+    if (bbDebited === null) return false;
+    // Same-game multis are regular tickets: they appear in the bet list,
+    // analytics, and settle through the normal pipeline.
+    const ticket: BetTicket = {
+      id: `sgm-${Date.now()}`,
+      type: "ACCUMULATOR",
+      selections: selections.map((s) => ({
+        fixtureId,
+        marketType: s.marketType,
+        selectionId: s.selectionId,
+        odds: s.odds,
+        details: s.label,
+        marketName: "Same Game Multi",
+      })),
+      totalOdds: combinedOdds,
       stake,
       potentialPayout: Math.round(stake * combinedOdds * 100) / 100,
       status: "PENDING",
-      placedAt: userProfile.currentRoundIndex,
+      timestamp: Date.now(),
     };
     const nextProfile = {
       ...userProfile,
-      balance: userProfile.balance - stake,
-      betBuilderTickets: [...(userProfile.betBuilderTickets || []), ticket],
+      balance: bbDebited,
+      tickets: [...userProfile.tickets, ticket],
     };
     setUserProfile(nextProfile);
     persist(nextProfile);

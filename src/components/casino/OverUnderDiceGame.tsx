@@ -30,17 +30,17 @@ export const OverUnderDiceGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
       setDiceVals([d1, d2]);
 
       let success = false;
-      let multiplier = 2.4;
+      let multiplier = 2.35;
 
       if (targetMode === "OVER_7") {
         success = sum > 7;
-        multiplier = 2.4;
+        multiplier = 2.35;
       } else if (targetMode === "UNDER_7") {
         success = sum < 7;
-        multiplier = 2.4;
+        multiplier = 2.35;
       } else {
         success = sum === 7;
-        multiplier = 6.5;
+        multiplier = 5.85;
       }
 
       if (success) {
@@ -85,7 +85,7 @@ export const OverUnderDiceGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
       <div className="grid grid-cols-3 gap-2 shrink-0 select-none">
         {(["UNDER_7", "EQUAL_7", "OVER_7"] as const).map(mode => {
           const isActive = targetMode === mode;
-          const multi = mode === "EQUAL_7" ? "6.5x" : "2.4x";
+          const multi = mode === "EQUAL_7" ? "5.85x" : "2.35x";
           const label = mode === "UNDER_7" ? "UNDER 7" : mode === "EQUAL_7" ? "EXACTLY 7" : "OVER 7";
           const activeStyle = mode === "UNDER_7"
             ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"

@@ -43,9 +43,9 @@ export function generateMatchOdds(homeTeam: Team, awayTeam: Team): MatchOdds {
   
   // Apply bookmaker vig/margin (e.g., 8%) for authentic odds
   const margin = 1.08;
-  const homeWinOdds = Math.max(1.05, Math.round((1.0 / (homeWinProbRaw / margin)) * 100) / 100);
-  const drawOdds = Math.max(1.50, Math.round((1.0 / (drawProbRaw / margin)) * 100) / 100);
-  const awayWinOdds = Math.max(1.05, Math.round((1.0 / (awayWinProbRaw / margin)) * 100) / 100);
+  const homeWinOdds = Math.max(1.05, Math.round((1.0 / (homeWinProbRaw * margin)) * 100) / 100);
+  const drawOdds = Math.max(1.50, Math.round((1.0 / (drawProbRaw * margin)) * 100) / 100);
+  const awayWinOdds = Math.max(1.05, Math.round((1.0 / (awayWinProbRaw * margin)) * 100) / 100);
 
   // Generate Exact Scores
   const commonScores = [
@@ -73,7 +73,7 @@ export function generateMatchOdds(homeTeam: Team, awayTeam: Team): MatchOdds {
     }
     
     const adjustedFreq = Math.max(0.005, cs.freq * probabilityModifier);
-    const odds = Math.max(4.50, Math.round((1.0 / adjustedFreq * margin) * 100) / 100);
+    const odds = Math.max(4.50, Math.round((1.0 / (adjustedFreq * margin)) * 100) / 100);
     
     return { score: cs.score, odds };
   });
@@ -137,21 +137,21 @@ export function generateMatchOdds(homeTeam: Team, awayTeam: Team): MatchOdds {
     const overProb = Math.max(0.05, Math.min(0.95, 0.5 + diff * 0.2));
     const underProb = 1.0 - overProb;
     return {
-      over: Math.max(1.01, Math.round((1 / (overProb / margin)) * 100) / 100),
-      under: Math.max(1.01, Math.round((1 / (underProb / margin)) * 100) / 100)
+      over: Math.max(1.01, Math.round((1 / (overProb * margin)) * 100) / 100),
+      under: Math.max(1.01, Math.round((1 / (underProb * margin)) * 100) / 100)
     }
   }
 
   // Double chance
   const doubleChance = {
-    homeOrDraw: Math.max(1.01, Math.round((1 / (homeOrDrawRaw / margin)) * 100) / 100),
-    homeOrAway: Math.max(1.01, Math.round((1 / (homeOrAwayRaw / margin)) * 100) / 100),
-    drawOrAway: Math.max(1.01, Math.round((1 / (drawOrAwayRaw / margin)) * 100) / 100),
+    homeOrDraw: Math.max(1.01, Math.round((1 / (homeOrDrawRaw * margin)) * 100) / 100),
+    homeOrAway: Math.max(1.01, Math.round((1 / (homeOrAwayRaw * margin)) * 100) / 100),
+    drawOrAway: Math.max(1.01, Math.round((1 / (drawOrAwayRaw * margin)) * 100) / 100),
   };
 
   const bothTeamsToScore = {
-    yes: Math.max(1.05, Math.round((1 / (bttsYesRaw / margin)) * 100) / 100),
-    no: Math.max(1.05, Math.round((1 / (bttsNoRaw / margin)) * 100) / 100)
+    yes: Math.max(1.05, Math.round((1 / (bttsYesRaw * margin)) * 100) / 100),
+    no: Math.max(1.05, Math.round((1 / (bttsNoRaw * margin)) * 100) / 100)
   };
 
   const overUnder = {
@@ -169,8 +169,8 @@ export function generateMatchOdds(homeTeam: Team, awayTeam: Team): MatchOdds {
     const underProb = 1.0 - overProb;
     return {
       line,
-      over: Math.max(1.01, Math.round((1 / (overProb / margin)) * 100) / 100),
-      under: Math.max(1.01, Math.round((1 / (underProb / margin)) * 100) / 100)
+      over: Math.max(1.01, Math.round((1 / (overProb * margin)) * 100) / 100),
+      under: Math.max(1.01, Math.round((1 / (underProb * margin)) * 100) / 100)
     };
   });
 
@@ -181,8 +181,8 @@ export function generateMatchOdds(homeTeam: Team, awayTeam: Team): MatchOdds {
     const underProb = 1.0 - overProb;
     return {
       line,
-      over: Math.max(1.01, Math.round((1 / (overProb / margin)) * 100) / 100),
-      under: Math.max(1.01, Math.round((1 / (underProb / margin)) * 100) / 100)
+      over: Math.max(1.01, Math.round((1 / (overProb * margin)) * 100) / 100),
+      under: Math.max(1.01, Math.round((1 / (underProb * margin)) * 100) / 100)
     };
   });
 
@@ -193,8 +193,8 @@ export function generateMatchOdds(homeTeam: Team, awayTeam: Team): MatchOdds {
     const underProb = 1.0 - overProb;
     return {
       line,
-      over: Math.max(1.01, Math.round((1 / (overProb / margin)) * 100) / 100),
-      under: Math.max(1.01, Math.round((1 / (underProb / margin)) * 100) / 100)
+      over: Math.max(1.01, Math.round((1 / (overProb * margin)) * 100) / 100),
+      under: Math.max(1.01, Math.round((1 / (underProb * margin)) * 100) / 100)
     };
   });
 

@@ -37,7 +37,7 @@ import {
   ROUND_LABELS,
 } from "./data/tournament";
 import { INITIAL_TIPSTERS, generateTipsterBetsForRound } from "./data/tipsters";
-import { getKeysForMode, persistStateToCache } from "./utils/storage";
+import { getKeysForMode, persistStateToCache, isSaveCompatible } from "./utils/storage";
 import { generateTransferListings, applyUserWinsToOwnedTeam } from "./engine/transferEngine";
 import { useProfile } from "./hooks/useProfile";
 import { useSimulation } from "./hooks/useSimulation";
@@ -156,7 +156,7 @@ export default function App() {
     const cs = localStorage.getItem(keys.tipsters);
     const ck = localStorage.getItem(keys.tipsterTickets);
 
-    if (cp && ct && cf && cs) {
+    if (cp && ct && cf && cs && isSaveCompatible(keys)) {
       try {
         const parsedProfile: Profile = JSON.parse(cp);
         const parsedTeams: Team[] = JSON.parse(ct);

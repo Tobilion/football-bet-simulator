@@ -42,14 +42,14 @@ const GAMES_LIST = [
   { id: "wheel", name: "Wheel of Wealth", rtp: "96.0%", desc: "12-segment spinning wheel. Up to 20x multiplier on every spin!", tag: "NEW 🎡", color: "from-amber-600/20 to-black/40 border-amber-500/30", multiplier: "up to 20x" },
   { id: "baccarat", name: "Baccarat Royale", rtp: "98.9%", desc: "Bet on Player, Banker or Tie. Tie pays 8:1. Banker 5% commission.", tag: "NEW 🎴", color: "from-rose-600/20 to-black/40 border-rose-500/30", multiplier: "up to 8x" },
   { id: "scratch", name: "Scratch & Score", rtp: "95.5%", desc: "Scratch 9 cells. Match 3+ symbols for up to 50x on diamonds!", tag: "NEW 🪙", color: "from-yellow-600/20 to-black/40 border-yellow-500/30", multiplier: "up to 50x" },
-  { id: "redblack", name: "Red or Black Streak", rtp: "97.0%", desc: "Double or nothing 4-round streak. Beware of the trick Joker! Up to 28x.", tag: "HOT STREAK", color: "from-red-500/20 to-black/40 border-red-500/30", multiplier: "up to 28.0x" },
-  { id: "bottle", name: "Spin the Bottle", rtp: "97.5%", desc: "Bet Up or Down with the rotating champagne bottle. 2% freeze risk.", tag: "CLASSIC", color: "from-yellow-500/10 to-black/40 border-yellow-500/30", multiplier: "2.2x" },
+  { id: "redblack", name: "Red or Black Streak", rtp: "97.0%", desc: "Double or nothing 4-round streak. Beware of the trick Joker! Up to 16.8x.", tag: "HOT STREAK", color: "from-red-500/20 to-black/40 border-red-500/30", multiplier: "up to 16.8x" },
+  { id: "bottle", name: "Spin the Bottle", rtp: "97.5%", desc: "Bet Up or Down with the rotating champagne bottle. 2% freeze risk.", tag: "CLASSIC", color: "from-yellow-500/10 to-black/40 border-yellow-500/30", multiplier: "1.98x" },
   { id: "crash", name: "Paddock Rush", rtp: "97.2%", desc: "Predict how far the football mascot runs before tripping. Uncapped multiplier!", tag: "HIGH VOL", color: "from-emerald-500/20 to-black/40 border-emerald-500/30", multiplier: "uncapped" },
   { id: "mines", name: "SportyMines", rtp: "98.0%", desc: "Custom mines on a 5x5 pitch. Uncover helmets and cash out early.", tag: "STRATEGY", color: "from-blue-500/20 to-black/40 border-blue-500/30", multiplier: "customizable" },
   { id: "shootout", name: "Penalty Shootout", rtp: "97.5%", desc: "Interactive spot kick. Beat the keeper for massive 40x multipliers!", tag: "SKILL", color: "from-purple-500/20 to-black/40 border-purple-500/30", multiplier: "up to 40.0x" },
   { id: "slots", name: "Football Slots", rtp: "96.5%", desc: "Spin football reels with high-paying Cups (100x) and Golden Boots (50x).", tag: "CASUAL", color: "from-amber-600/20 to-black/40 border-amber-500/30", multiplier: "up to 100.0x" },
   { id: "plinko", name: "Golden Boot Plinko", rtp: "98.1%", desc: "Drop a golden chip through pegs into boosted multiplier bins.", tag: "BEST RTP", color: "from-pink-500/20 to-black/40 border-pink-500/30", multiplier: "up to 15.0x" },
-  { id: "dice", name: "Over / Under Dice", rtp: "97.8%", desc: "Roll high-fidelity duel dice. Adjust targets for boosted payouts.", tag: "SWIFT", color: "from-sky-500/20 to-black/40 border-sky-500/30", multiplier: "up to 6.5x" },
+  { id: "dice", name: "Over / Under Dice", rtp: "97.8%", desc: "Roll high-fidelity duel dice. Adjust targets for boosted payouts.", tag: "SWIFT", color: "from-sky-500/20 to-black/40 border-sky-500/30", multiplier: "up to 5.85x" },
 ];
 
 export const CasinoSuite: React.FC<CasinoSuiteProps> = ({ balance, onUpdateBalance, username, currentRoundIndex }) => {
@@ -110,7 +110,7 @@ export const CasinoSuite: React.FC<CasinoSuiteProps> = ({ balance, onUpdateBalan
   };
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto bg-[#05070a] text-slate-100 flex flex-col no-scrollbar" id="cu-bet-elite-casino-suite">
+    <div className="flex-1 min-h-0 overflow-y-auto bg-[#05070a] text-slate-100 flex flex-col custom-scrollbar" id="cu-bet-elite-casino-suite">
       {/* Header — lobby only */}
       {!activeGame && (
         <div className="relative shrink-0 border-b border-white/5 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#101725] via-[#05070a] to-[#05070a] px-4 md:px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -153,10 +153,10 @@ export const CasinoSuite: React.FC<CasinoSuiteProps> = ({ balance, onUpdateBalan
         </div>
       )}
 
-      <div className={`flex-1 grid gap-4 p-4 md:p-5 min-h-0 ${activeGame && isFullView ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-12"}`}>
+      <div className={`grid gap-4 p-4 md:p-5 items-start ${activeGame && isFullView ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-12"}`}>
         {/* Left sidebar: VIP card + log history */}
         {!(activeGame && isFullView) && (
-          <div className={`${activeGame ? "hidden lg:flex lg:col-span-4" : "lg:col-span-4"} flex flex-col gap-4 min-h-0`}>
+          <div className={`${activeGame ? "hidden lg:flex lg:col-span-4" : "lg:col-span-4"} flex flex-col gap-4`}>
             <div className="bg-[#0b0e14] border border-white/5 rounded-2xl p-4 flex flex-col shrink-0">
               <span className="text-[10px] font-mono font-bold tracking-widest text-slate-400 uppercase">VIP MEMBERS CLUB</span>
               <h3 className="text-xs font-bold text-slate-100 mt-0.5">Hi, Manager {username}!</h3>
@@ -191,7 +191,7 @@ export const CasinoSuite: React.FC<CasinoSuiteProps> = ({ balance, onUpdateBalan
                       </div>
                       <div className="text-right font-mono">
                         <span className={`font-black text-xs ${isWin ? "text-emerald-400" : isJoker ? "text-amber-500" : isFreeze ? "text-blue-400" : "text-red-400"}`}>
-                          {isWin ? `+$${formatMoney((log.amount ?? 0) * (log.multiplier ?? 0))}` : isJoker ? "WIPED" : isFreeze ? "FROZEN" : `-$${formatMoney(log.amount ?? 0, 0)}`}
+                          {isWin ? `+$${formatMoney(Math.max(0, (log.amount ?? 0) * ((log.multiplier ?? 0) - 1)))}` : isJoker ? "WIPED" : isFreeze ? "FROZEN" : `-$${formatMoney(log.amount ?? 0, 0)}`}
                         </span>
                         <div className="text-[9px] text-slate-500 uppercase mt-0.5">
                           {isWin ? `${(log.multiplier ?? 0).toFixed(1)}x` : isJoker ? "JOKER" : isFreeze ? "FREEZE" : "LOST"}
@@ -206,9 +206,9 @@ export const CasinoSuite: React.FC<CasinoSuiteProps> = ({ balance, onUpdateBalan
         )}
 
         {/* Right: game area or lobby grid */}
-        <div className={`${activeGame && isFullView ? "col-span-1" : "lg:col-span-8"} flex flex-col min-h-0`}>
+        <div className={`${activeGame && isFullView ? "col-span-1" : "lg:col-span-8"} flex flex-col`}>
           {activeGame ? (
-            <div className="flex-1 bg-[#0b0e14] border border-white/5 rounded-2xl flex flex-col min-h-0 relative shadow-2xl overflow-hidden">
+            <div className="flex-1 bg-[#0b0e14] border border-white/5 rounded-2xl flex flex-col min-h-[560px] relative shadow-2xl overflow-hidden">
               {/* Active game header */}
               <div className="flex items-center justify-between border-b border-white/5 px-4 py-3 shrink-0">
                 <div className="flex gap-2">
@@ -253,12 +253,12 @@ export const CasinoSuite: React.FC<CasinoSuiteProps> = ({ balance, onUpdateBalan
                 </div>
               )}
 
-              <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-4" key={activeGame}>
+              <div className="flex-1 p-4" key={activeGame}>
                 {gameRenderer[activeGame]}
               </div>
             </div>
           ) : (
-            <div className="flex-1 min-h-0 flex flex-col">
+            <div className="flex flex-col">
               {/* Filter tabs + count */}
               <div className="flex items-center justify-between pb-3 flex-wrap gap-2">
                 <div className="flex gap-1.5 bg-black/40 border border-white/5 rounded-xl p-1">
@@ -272,7 +272,7 @@ export const CasinoSuite: React.FC<CasinoSuiteProps> = ({ balance, onUpdateBalan
                 <span className="text-[10px] text-slate-500 font-mono hidden sm:block">Click card to launch terminal</span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto pr-0.5 no-scrollbar pb-6 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 content-start pr-0.5 pb-6 flex-1">
                 {filteredGames.map(g => (
                   <div key={g.id} onClick={() => setActiveGame(g.id)}
                     className={`p-4 rounded-2xl bg-gradient-to-br ${g.color} flex flex-col justify-between text-left hover:scale-[1.015] active:scale-[0.99] transition-all cursor-pointer group relative overflow-hidden border`}>

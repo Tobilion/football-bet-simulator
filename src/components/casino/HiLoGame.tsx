@@ -12,7 +12,14 @@ const isRed = (s: Suit) => s === "♥" || s === "♦";
 interface Card { val: CardVal; suit: Suit; }
 function randomCard(): Card { return { val: VALS[Math.floor(Math.random()*13)], suit: SUITS[Math.floor(Math.random()*4)] }; }
 
-const STREAK_MULTIPLIERS = [1.5, 2.2, 3.5, 6.0, 12.0, 25.0, 55.0, 120.0];
+// House edge kept at 3% (RTP ~97%). Multipliers are DERIVED from the current card's real
+// win probability, so no card/direction is ever +EV — every step returns 0.97 on average.
+// Ties lose. With 13 ranks: strictly-higher count = 13 - rank, strictly-lower count = rank - 1.
+const HOUSE_EDGE = 0.97;
+const MAX_STEPS = 8;
+const higherCount = (rank: number) => 13 - rank;
+const lowerCount = (rank: number) => rank - 1;
+const stepMulti = (count: number) => (count > 0 ? (HOUSE_EDGE * 13) / count : 0);
 
 export const HiLoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog }) => {
   const [stake, setStake] = useState(() => Math.max(1, Math.min(50, Math.floor(balance))));
@@ -24,41 +31,45 @@ export const HiLoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog
   const [resolving, setResolving] = useState(false);
   const safeStake = Math.max(1, Math.min(stake, Math.max(1, balance)));
 
+  const curRank = currentCard ? VAL_RANK[currentCard.val] : 0;
+  const hiCount = higherCount(curRank);
+  const loCount = lowerCount(curRank);
+  const hiMulti = stepMulti(hiCount);
+  const loMulti = stepMulti(loCount);
+
   const startGame = () => {
     if (balance < safeStake) { setMessage("❌ Insufficient balance."); return; }
     onUpdateBalance(p => Math.max(0, p - safeStake));
     const card = randomCard();
     setCurrentCard(card); setStreak(0); setPool(safeStake); setPhase("playing");
-    setMessage(`Current card: ${card.val}${card.suit}. Guess — Higher or Lower?`);
+    setMessage(`Current card: ${card.val}${card.suit}. Higher or Lower? (payout scales with the odds)`);
   };
 
   const guess = (dir: "higher" | "lower") => {
     if (phase !== "playing" || !currentCard || resolving) return;
+    const stepCount = dir === "higher" ? higherCount(curRank) : lowerCount(curRank);
+    if (stepCount === 0) return; // impossible guess (e.g. Higher on a King)
+    const multi = stepMulti(stepCount);
     setResolving(true);
     setTimeout(() => {
       const next = randomCard();
-      const curRank = VAL_RANK[currentCard.val];
       const nextRank = VAL_RANK[next.val];
-      let correct = false;
-      if (dir === "higher" && nextRank > curRank) correct = true;
-      if (dir === "lower" && nextRank < curRank) correct = true;
-      // Tie = lose
+      const correct = dir === "higher" ? nextRank > curRank : nextRank < curRank; // ties lose
       if (!correct) {
         addLog("Hi-Lo Ladder", safeStake, 0, "LOSS", `Lost on streak ${streak+1}: drew ${next.val}${next.suit}`);
         setMessage(`💔 Drawn ${next.val}${next.suit}! Streak broken at level ${streak+1}. Lost $${formatMoney(safeStake)}.`);
         setCurrentCard(next); setPhase("done"); setResolving(false); return;
       }
       const newStreak = streak + 1;
-      const multi = STREAK_MULTIPLIERS[Math.min(newStreak - 1, STREAK_MULTIPLIERS.length - 1)];
-      const newPool = safeStake * multi;
+      const newPool = pool * multi;
       setCurrentCard(next); setStreak(newStreak); setPool(newPool);
-      if (newStreak >= 8) {
+      if (newStreak >= MAX_STEPS) {
         onUpdateBalance(p => p + newPool);
-        addLog("Hi-Lo Ladder", safeStake, multi, "WIN", `Max streak! ${next.val}${next.suit}`);
-        setMessage(`🏆 MAX STREAK! 8 correct! You win $${formatMoney(newPool)} (${multi}x)!`);
+        addLog("Hi-Lo Ladder", safeStake, newPool / safeStake, "WIN", `Max streak! ${next.val}${next.suit}`);
+        setMessage(`🏆 MAX STREAK! ${MAX_STEPS} correct! You win $${formatMoney(newPool)} (${(newPool/safeStake).toFixed(2)}x)!`);
         setPhase("done"); setResolving(false); return;
       }
-      setMessage(`✅ ${next.val}${next.suit}! Level ${newStreak}/${8} — Pool: $${formatMoney(newPool)} (${multi}x). Continue or Cashout?`);
+      setMessage(`✅ ${next.val}${next.suit}! Level ${newStreak}/${MAX_STEPS} — Pool: $${formatMoney(newPool)} (${(newPool/safeStake).toFixed(2)}x). Continue or Cashout?`);
       setResolving(false);
     }, 600);
   };
@@ -73,17 +84,22 @@ export const HiLoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog
 
   return (
     <div className="space-y-4 select-none">
-      {/* Streak ladder */}
+      {/* Streak progress */}
       <div className="bg-black/40 border border-white/5 rounded-xl p-3">
-        <div className="text-[9px] font-mono text-slate-500 uppercase font-bold mb-2">STREAK LADDER</div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[9px] font-mono text-slate-500 uppercase font-bold">STREAK PROGRESS</div>
+          <div className="text-[9px] font-mono text-emerald-400 font-bold">
+            {phase === "playing" ? `POOL $${formatMoney(pool)} (${(pool/safeStake).toFixed(2)}x)` : `MAX ${MAX_STEPS} LEVELS`}
+          </div>
+        </div>
         <div className="flex gap-1.5 flex-wrap">
-          {STREAK_MULTIPLIERS.map((m, i) => (
-            <div key={i} className={`flex-1 min-w-[3rem] text-center py-1.5 rounded-lg border text-[9px] font-mono font-black transition-all ${
+          {Array.from({ length: MAX_STEPS }, (_, i) => (
+            <div key={i} className={`flex-1 min-w-[2rem] text-center py-1.5 rounded-lg border text-[9px] font-mono font-black transition-all ${
               i < streak ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" :
               i === streak && phase === "playing" ? "bg-amber-500/20 border-amber-500 text-amber-400 animate-pulse" :
               "bg-white/2 border-white/5 text-slate-600"
             }`}>
-              <div>L{i+1}</div><div>{m}x</div>
+              L{i+1}
             </div>
           ))}
         </div>
@@ -116,24 +132,26 @@ export const HiLoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog
       ) : (
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => guess("higher")} disabled={resolving}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm py-4 rounded-2xl transition-all active:scale-95 disabled:opacity-50 cursor-pointer uppercase">
-              ▲ HIGHER
+            <button onClick={() => guess("higher")} disabled={resolving || hiCount === 0}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm py-4 rounded-2xl transition-all active:scale-95 disabled:opacity-40 cursor-pointer uppercase flex flex-col items-center leading-tight">
+              <span>▲ HIGHER</span>
+              <span className="text-[10px] font-mono opacity-90">{hiCount === 0 ? "—" : `x${hiMulti.toFixed(2)}`}</span>
             </button>
-            <button onClick={() => guess("lower")} disabled={resolving}
-              className="bg-blue-700 hover:bg-blue-600 text-white font-black text-sm py-4 rounded-2xl transition-all active:scale-95 disabled:opacity-50 cursor-pointer uppercase">
-              ▼ LOWER
+            <button onClick={() => guess("lower")} disabled={resolving || loCount === 0}
+              className="bg-blue-700 hover:bg-blue-600 text-white font-black text-sm py-4 rounded-2xl transition-all active:scale-95 disabled:opacity-40 cursor-pointer uppercase flex flex-col items-center leading-tight">
+              <span>▼ LOWER</span>
+              <span className="text-[10px] font-mono opacity-90">{loCount === 0 ? "—" : `x${loMulti.toFixed(2)}`}</span>
             </button>
           </div>
           {streak > 0 && (
             <button onClick={cashout}
               className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs py-2.5 rounded-2xl transition-all active:scale-95 cursor-pointer uppercase block text-center">
-              💰 CASHOUT ${formatMoney(pool)} ({(pool/safeStake).toFixed(1)}x)
+              💰 CASHOUT ${formatMoney(pool)} ({(pool/safeStake).toFixed(2)}x)
             </button>
           )}
         </div>
       )}
-      <div className="text-[9px] text-slate-600 font-mono text-center">Ties lose • 8 levels up to 120x • RTP ~97%</div>
+      <div className="text-[9px] text-slate-600 font-mono text-center">Ties lose • payout scales with card odds • up to {MAX_STEPS} levels • RTP ~97%</div>
     </div>
   );
 };

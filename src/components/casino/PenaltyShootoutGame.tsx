@@ -44,7 +44,7 @@ export const PenaltyShootoutGame: React.FC<GameProps> = ({ balance, onUpdateBala
 
     setTimeout(() => {
       setFiring(false);
-      const saved = Math.random() < 0.20;
+      const saved = Math.random() < 0.62;
       setLastEvent({ spot, saved });
 
       if (saved) {

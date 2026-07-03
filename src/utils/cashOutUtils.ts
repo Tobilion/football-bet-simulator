@@ -1,58 +1,6 @@
-import { BetSelection, BetTicket, Fixture, MarketType } from "../types";
+import { BetTicket, Fixture, MarketType } from "../types";
+import { resolveSelection } from "./settlementEngine";
 import { getLiveInPlayOdds } from "../utils";
-
-/** Check whether a single settled selection won against the completed fixture. */
-function checkLegResult(sel: BetSelection, fixture: Fixture): "WON" | "LOST" | "PENDING" {
-  if (fixture.status !== "FT") return "PENDING";
-  const h = Math.floor(fixture.homeScore);
-  const a = Math.floor(fixture.awayScore);
-
-  switch (sel.marketType as MarketType) {
-    case "MATCH_WINNER": {
-      const outcome = h > a ? "HOME" : a > h ? "AWAY" : "DRAW";
-      return sel.selectionId === outcome ? "WON" : "LOST";
-    }
-    case "DOUBLE_CHANCE": {
-      const outcome = h > a ? "HOME" : a > h ? "AWAY" : "DRAW";
-      if (sel.selectionId === "HOME_OR_DRAW") return outcome !== "AWAY" ? "WON" : "LOST";
-      if (sel.selectionId === "HOME_OR_AWAY") return outcome !== "DRAW" ? "WON" : "LOST";
-      if (sel.selectionId === "DRAW_OR_AWAY") return outcome !== "HOME" ? "WON" : "LOST";
-      return "LOST";
-    }
-    case "BOTH_TEAMS_TO_SCORE": {
-      const both = h > 0 && a > 0;
-      return (sel.selectionId === "YES") === both ? "WON" : "LOST";
-    }
-    case "OVER_UNDER_GOALS": {
-      const total = h + a;
-      const [mode, lineStr] = sel.selectionId.split("_");
-      const line = parseFloat(lineStr.replace("_", "."));
-      return (mode === "OVER" ? total > line : total < line) ? "WON" : "LOST";
-    }
-    case "OVER_UNDER_CORNERS": {
-      const total = (fixture.stats?.home.corners ?? 0) + (fixture.stats?.away.corners ?? 0);
-      const [mode, lineStr] = sel.selectionId.split("_");
-      const line = parseFloat(lineStr);
-      return (mode === "OVER" ? total > line : total < line) ? "WON" : "LOST";
-    }
-    case "OVER_UNDER_CARDS": {
-      const total =
-        (fixture.stats?.home.yellowCards ?? 0) + (fixture.stats?.home.redCards ?? 0) +
-        (fixture.stats?.away.yellowCards ?? 0) + (fixture.stats?.away.redCards ?? 0);
-      const [mode, lineStr] = sel.selectionId.split("_");
-      const line = parseFloat(lineStr);
-      return (mode === "OVER" ? total > line : total < line) ? "WON" : "LOST";
-    }
-    case "EXACT_SCORE":
-      return sel.selectionId === `${h}-${a}` ? "WON" : "LOST";
-    case "ANYTIME_GOALSCORER":
-      return fixture.events.some(
-        (ev) => ev.type === "GOAL" && ev.playerId === sel.selectionId,
-      ) ? "WON" : "LOST";
-    default:
-      return "PENDING";
-  }
-}
 
 /**
  * Builds the live-odds map for all selections in a ticket by calling getLiveInPlayOdds
@@ -113,10 +61,14 @@ export function calculateCashOutValue(
       const stake = ticket.selectionStakes[`${sel.fixtureId}-${sel.marketType}-${sel.selectionId}`] || 0;
       if (!fix || stake === 0) continue;
 
-      const legResult = checkLegResult(sel, fix);
+      const legResult = resolveSelection(sel, fix);
       if (legResult === "LOST") continue;
 
       let legFactor = 1.0;
+      if (legResult === "PENDING" && fix.status === "SCHEDULED") {
+        // Unstarted leg: fair value is the implied win probability, not 1.0.
+        legFactor = 1 / Math.max(1.01, sel.odds);
+      }
       if (legResult === "PENDING" && fix.status === "LIVE") {
         const currentOdds = currentOddsMap[`${sel.marketType}:${sel.selectionId}`];
         if (currentOdds === null || currentOdds === undefined) return null; // suspended
@@ -133,15 +85,18 @@ export function calculateCashOutValue(
     const fix = fixtures.find((f) => f.id === sel.fixtureId);
     if (!fix) continue;
 
-    const legResult = checkLegResult(sel, fix);
+    const legResult = resolveSelection(sel, fix);
     if (legResult === "LOST") return 0;
 
-    if (legResult === "PENDING" && fix.status === "LIVE") {
+    if (legResult === "PENDING" && fix.status === "SCHEDULED") {
+      // Unstarted leg: price at implied probability so pre-match cash-out ~ stake.
+      factor *= 1 / Math.max(1.01, sel.odds);
+    } else if (legResult === "PENDING" && fix.status === "LIVE") {
       const currentOdds = currentOddsMap[`${sel.marketType}:${sel.selectionId}`];
       if (currentOdds === null || currentOdds === undefined) return null;
       factor *= sel.odds / Math.max(1.01, currentOdds);
     }
-    // legResult === "WON" or fixture === "SCHEDULED": factor stays 1.0
+    // legResult === "WON": factor stays 1.0
   }
 
   return Math.max(0, Math.round(ticket.potentialPayout * factor * 0.92 * 100) / 100);

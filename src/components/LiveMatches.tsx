@@ -58,7 +58,7 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
 
   // Speed selection — default to broadcast (90s total watch time)
   const [speedMode, setSpeedMode] = useState<"broadcast" | "fast">("broadcast");
-  const speedMap = { "broadcast": 90000, "fast": 6000 };
+  const speedMap = { "broadcast": 8000, "fast": 2500 };
 
   const triggerGlobalEntity = (type: "team" | "player", id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -89,6 +89,7 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
     ? selectedFixture?.homeTeamId === ownedTeamId || selectedFixture?.awayTeamId === ownedTeamId
     : false;
   const ownedTeamObj = isOwnerMatchSelected ? teams.find(t => t.id === ownedTeamId) : null;
+  const ownedTeamFatigue = ownedTeamObj ? (ownedTeamObj.players.length ? ownedTeamObj.players.reduce((a, p) => a + (p.fatigue ?? 0), 0) / ownedTeamObj.players.length : 0) : 0;
 
   // Auto scroll commentary container
   const commentaryEndRef = useRef<HTMLDivElement>(null);
@@ -536,8 +537,8 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
                     </span>
                     <span className="text-slate-400">
                       Fatigue:{" "}
-                      <span className={`font-bold ${(ownedTeamObj.fatigue ?? 0) <= 30 ? "text-emerald-400" : (ownedTeamObj.fatigue ?? 0) <= 60 ? "text-yellow-400" : "text-red-400"}`}>
-                        {(ownedTeamObj.fatigue ?? 0) <= 30 ? "FRESH" : (ownedTeamObj.fatigue ?? 0) <= 60 ? "TIRED" : "SPENT"}
+                      <span className={`font-bold ${ownedTeamFatigue <= 30 ? "text-emerald-400" : ownedTeamFatigue <= 60 ? "text-yellow-400" : "text-red-400"}`}>
+                        {ownedTeamFatigue <= 30 ? "FRESH" : ownedTeamFatigue <= 60 ? "TIRED" : "SPENT"}
                       </span>
                     </span>
                     <span className="text-yellow-500/60 font-bold">+5% ODDS</span>
