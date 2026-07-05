@@ -60,8 +60,11 @@ const getSafestSelectionForFixture = (fixture: Fixture, teams: Team[]): Recommen
   };
 };
 
-const getSafestRecommendedSels = (fixtures: Fixture[], teams: Team[], quantity: number): RecommendedSelection[] => {
-  const scheduled = fixtures.filter(f => f.status === "SCHEDULED");
+const getSafestRecommendedSels = (fixtures: Fixture[], teams: Team[], quantity: number, currentRoundIndex: number): RecommendedSelection[] => {
+  // Only recommend games from the CURRENT round. In a league every matchday is
+  // scheduled up-front, so without this filter the advisor could suggest a fixture
+  // several matchdays away that never settles when the round advances (voiding the leg).
+  const scheduled = fixtures.filter(f => f.status === "SCHEDULED" && f.roundIndex === currentRoundIndex);
   if (scheduled.length === 0) return [];
   
   const safestChoices = scheduled.map(f => getSafestSelectionForFixture(f, teams));
@@ -82,6 +85,7 @@ interface BettingSlipProps {
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
   onAddSelections: (selections: BetSelection[]) => void;
+  currentRoundIndex: number;
 }
 
 export const BettingSlip: React.FC<BettingSlipProps> = ({
@@ -94,7 +98,8 @@ export const BettingSlip: React.FC<BettingSlipProps> = ({
   onPlaceBet,
   collapsed,
   setCollapsed,
-  onAddSelections
+  onAddSelections,
+  currentRoundIndex
 }) => {
   const [betMode, setBetMode] = useState<"SINGLE" | "ACCUMULATOR">("SINGLE");
   
@@ -108,9 +113,9 @@ export const BettingSlip: React.FC<BettingSlipProps> = ({
   const [recommendQty, setRecommendQty] = useState<number>(3);
   const [advisorSuccess, setAdvisorSuccess] = useState<boolean>(false);
 
-  const scheduledFixtures = fixtures.filter(f => f.status === "SCHEDULED");
+  const scheduledFixtures = fixtures.filter(f => f.status === "SCHEDULED" && f.roundIndex === currentRoundIndex);
   const maxAvailable = scheduledFixtures.length;
-  const recommendedSels = getSafestRecommendedSels(fixtures, teams, recommendQty);
+  const recommendedSels = getSafestRecommendedSels(fixtures, teams, recommendQty, currentRoundIndex);
 
   // Clamp recommended quantity if fixtures decrease
   useEffect(() => {

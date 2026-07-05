@@ -151,14 +151,12 @@ export const VIPStore: React.FC<VIPStoreProps> = ({ balance, purchasedItems, onP
                         onPurchase({ ...item, worth: Math.floor(item.price * 0.85), icon: item.imageUrl });
                       }
                     }}
-                    disabled={balance < item.price || (item.category === "Football Clubs" && !!ownedTeamId)}
+                    disabled={balance < item.price}
                     className="w-full py-2 rounded-xl font-bold text-[10px] uppercase cursor-pointer disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-600 bg-amber-500 hover:bg-amber-400 text-amber-950 transition-colors shadow-lg active:scale-[0.98]"
                   >
-                    {item.category === "Football Clubs" && ownedTeamId
-                      ? "Already Own a Club"
-                      : balance >= item.price
-                        ? item.category === "Football Clubs" ? "Choose Club →" : "Acquire Asset"
-                        : "Insufficient Wallet"}
+                    {balance >= item.price
+                      ? item.category === "Football Clubs" ? "Choose Club →" : "Acquire Asset"
+                      : "Insufficient Wallet"}
                   </button>
                 </div>
               </div>

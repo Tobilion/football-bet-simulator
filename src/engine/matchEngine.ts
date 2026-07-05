@@ -23,14 +23,69 @@ function calculateEffectiveTeamRating(team: Team): number {
   return Math.round(baseAvg + moraleBonus);
 }
 
+export interface LineupStrength { overall: number; attack: number; defense: number; gk: number; }
+
+// The best available XI: the owner's chosen starters if valid, otherwise the top 11 by
+// rating (guaranteeing a keeper). This is what actually plays — bench players no longer
+// dilute a club's strength, so your starting-XI and transfer choices matter.
+export function getStartingXI(team: Team): Player[] {
+  const own = team.ownership;
+  if (own?.starterIds && own.starterIds.length === 11) {
+    const xi = own.starterIds
+      .map(id => team.players.find(p => p.id === id))
+      .filter((p): p is Player => !!p);
+    if (xi.length === 11) return xi;
+  }
+  const gk = team.players.filter(p => p.position === "GK").sort((a, b) => b.rating - a.rating)[0];
+  const rest = team.players
+    .filter(p => p.id !== gk?.id)
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, gk ? 10 : 11);
+  return gk ? [gk, ...rest] : rest;
+}
+
+// Position-weighted attack / defense / keeper strength from the starting XI, adjusted for
+// fatigue, morale and (for user-owned clubs) mentality / pressing / training facilities.
+export function lineupStrength(team: Team): LineupStrength {
+  const xi = getStartingXI(team);
+  if (xi.length === 0) return { overall: 60, attack: 60, defense: 60, gk: 60 };
+  const eff = (p: Player) => Math.max(40, p.rating - Math.max(0, ((p.fatigue || 0) - 50) * 0.2));
+  const avg = (arr: Player[], fallback: number) =>
+    arr.length ? arr.reduce((sum, p) => sum + eff(p), 0) / arr.length : fallback;
+  const gkP = xi.find(p => p.position === "GK");
+  const defs = xi.filter(p => p.position === "DEF");
+  const mids = xi.filter(p => p.position === "MID");
+  const atts = xi.filter(p => p.position === "ATT");
+  const overall = xi.reduce((sum, p) => sum + eff(p), 0) / xi.length;
+  let attack = avg(atts, overall) * 0.65 + avg(mids, overall) * 0.35;
+  let defense = avg(defs, overall) * 0.65 + avg(mids, overall) * 0.35;
+  let gk = gkP ? eff(gkP) : overall - 3;
+  const moraleBonus = (((team.morale ?? 60) - 60) * 0.1);
+  attack += moraleBonus; defense += moraleBonus;
+  let overallAdj = overall + moraleBonus;
+  const own = team.ownership;
+  if (own) {
+    if (own.mentality === "Ultra Attack") { attack += 6; defense -= 6; }
+    else if (own.mentality === "Attacking") { attack += 3; defense -= 3; }
+    else if (own.mentality === "Defensive") { attack -= 3; defense += 4; }
+    if (own.pressingStyle === "Gegenpressing") { attack += 2; defense -= 1; }
+    else if (own.pressingStyle === "High Press") { attack += 1; }
+    else if (own.pressingStyle === "Low Press") { defense += 2; attack -= 1; }
+    const trainBonus = Math.max(0, (own.trainingFacilityLevel - 1)) * 0.6;
+    attack += trainBonus; defense += trainBonus; overallAdj += trainBonus;
+  }
+  return { overall: overallAdj, attack, defense, gk };
+}
+
 // 1. Odds Generator for Fixture
 export function generateMatchOdds(homeTeam: Team, awayTeam: Team): MatchOdds {
-  const homeAvg = calculateEffectiveTeamRating(homeTeam);
-  const awayAvg = calculateEffectiveTeamRating(awayTeam);
-  
-  // Home advantage addition
-  const homePower = homeAvg + 2;
-  const awayPower = awayAvg;
+  const homeAvg = lineupStrength(homeTeam).overall;
+  const awayAvg = lineupStrength(awayTeam).overall;
+
+  // Home advantage addition. Subtract a baseline so rating gaps translate into a
+  // realistically wide power ratio (a great side is a heavy favorite, not a coin flip).
+  const homePower = Math.max(1, (homeAvg + 3) - 30);
+  const awayPower = Math.max(1, awayAvg - 30);
   
   const totalPower = homePower + awayPower;
   
@@ -339,8 +394,10 @@ export function simulateMatchTick(
     }
   };
 
-  const homeAvg = calculateEffectiveTeamRating(homeTeam);
-  const awayAvg = calculateEffectiveTeamRating(awayTeam);
+  const homeLU = lineupStrength(homeTeam);
+  const awayLU = lineupStrength(awayTeam);
+  const homeAvg = homeLU.overall;
+  const awayAvg = awayLU.overall;
 
   // Total ticks = 15. Each tick is 6 minutes of play. Extra Time is ticks 16-20.
   const tickDuration = 6;
@@ -429,10 +486,11 @@ export function simulateMatchTick(
     const awayRedCardPenalty = awayActive.redCards.length * 4;
 
     const homeAdvantage = 3;
-    const homeStrength = Math.max(10, homeAvg + homeAdvantage - homeRedCardPenalty);
-    const awayStrength = Math.max(10, awayAvg - awayRedCardPenalty);
+    // Widen the possession/territory split so the better side dominates the ball.
+    const homeStrength = Math.max(1, (homeAvg + homeAdvantage - homeRedCardPenalty) - 30);
+    const awayStrength = Math.max(1, (awayAvg - awayRedCardPenalty) - 30);
     const attackProb = homeStrength / (homeStrength + awayStrength);
-    
+
     const isHomeAttack = Math.random() < attackProb;
     const attackingTeam = isHomeAttack ? homeTeam : awayTeam;
     const defendingTeam = isHomeAttack ? awayTeam : homeTeam;
@@ -440,6 +498,18 @@ export function simulateMatchTick(
     const defendingSide = isHomeAttack ? "away" : "home";
     const attackingActive = isHomeAttack ? homeActive : awayActive;
     const defendingActive = isHomeAttack ? awayActive : homeActive;
+
+    // Dynamic finish quality: attacker's attack vs defender's defense + keeper.
+    // A strong attack against a weak defence converts far more of its chances.
+    const atkLU = isHomeAttack ? homeLU : awayLU;
+    const defLU = isHomeAttack ? awayLU : homeLU;
+    const defComposite = defLU.defense * 0.6 + defLU.gk * 0.4;
+    const goalThreshold = Math.max(0.10, Math.min(0.70,
+      0.40 * Math.pow(atkLU.attack / Math.max(30, defComposite), 1.15)));
+    const saveShare = defComposite / (defComposite + atkLU.attack);
+    // Fold the dynamic conversion into the existing 0..0.78 "chance" window.
+    const gBound = 0.78 * goalThreshold;
+    const sBound = gBound + (0.78 - gBound) * saveShare;
 
     // Randomize the nature of the action
     let actionRand = Math.random();
@@ -451,7 +521,7 @@ export function simulateMatchTick(
       actionRand = Math.min(1.0, actionRand + 0.15); // Blizzard shifts away from goals somewhat too
     }
 
-    if (actionRand < 0.32) {
+    if (actionRand < gBound) {
       // ⚽ GOAL SCORING CHANCE SUCCESS
       const outfieldPlayers = attackingActive.onField.filter(p => p.position !== "GK");
       
@@ -506,7 +576,7 @@ export function simulateMatchTick(
         });
       }
 
-    } else if (actionRand < 0.58) {
+    } else if (actionRand < sBound) {
       // 🧤 SHOT SAVED BY KEEPER
       // Find goalkeeper on field
       const defenderGK = defendingActive.onField.find(p => p.position === "GK") || defendingTeam.players.find(p => p.position === "GK") || defendingTeam.players[0];
@@ -638,7 +708,7 @@ export function simulateMatchTick(
       commentary: `🏁 FULL TIME! Score is ${homeTeam.name} ${updatedFixture.homeScore} - ${updatedFixture.awayScore} ${awayTeam.name}.`
     });
 
-    const isLeague = fixture.id.startsWith("l-");
+    const isLeague = fixture.id.startsWith("l"); // matches both "l-" and "ls-" league fixtures
     if (!isLeague && updatedFixture.homeScore === updatedFixture.awayScore) {
       updatedFixture.events.push({
         minute: 90,

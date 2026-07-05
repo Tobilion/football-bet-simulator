@@ -1,6 +1,0 @@
-{
-  "name": "CU Bet",
-  "description": "An offline-first, professional 32-team knockout football simulation and betting site featuring a real-time match stats engine, interactive single/accumulator betting slips, player development analytics, and virtual AI tipster leaderboards.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

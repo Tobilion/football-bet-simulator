@@ -334,16 +334,18 @@ export function applyRelegationPromotion(
     .sort((a, b) => b.pts - a.pts || b.gd - a.gd);
 
   const relegatedIds = new Set(seasonTeamsSorted.slice(-3).map(t => t.id));
-  const promotedIds = new Set(seasonTeamsSorted.slice(0, 3).map(t => t.id));
 
-  const div2Pool = teams.filter(t => (t.division ?? 1) === 2 && !seenIds.has(t.id));
-  const shuffledDiv2 = [...div2Pool].sort(() => Math.random() - 0.5);
-  const incomingIds = new Set(shuffledDiv2.slice(0, 3).map(t => t.id));
+  // Promote the STRONGEST Division 2 clubs (merit by squad rating), not a random lottery.
+  const avgRating = (tm: Team) =>
+    tm.players.length ? tm.players.reduce((s, p) => s + p.rating, 0) / tm.players.length : 0;
+  const div2Pool = teams
+    .filter(t => (t.division ?? 1) === 2 && !seenIds.has(t.id))
+    .sort((a, b) => avgRating(b) - avgRating(a));
+  const incomingIds = new Set(div2Pool.slice(0, relegatedIds.size).map(t => t.id));
 
   return teams.map(t => {
     if (relegatedIds.has(t.id)) return { ...t, division: 2 as const };
     if (incomingIds.has(t.id)) return { ...t, division: 1 as const };
-    if (promotedIds.has(t.id) && (t.division ?? 1) === 2) return { ...t, division: 1 as const };
     return t;
   });
 }

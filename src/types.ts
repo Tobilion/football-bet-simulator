@@ -51,6 +51,11 @@ export type Formation = "4-4-2" | "4-3-3" | "3-5-2" | "4-2-3-1" | "5-3-2" | "3-4
 export type Mentality = "Defensive" | "Balanced" | "Attacking" | "Ultra Attack";
 export type PressingStyle = "Low Press" | "Mid Block" | "High Press" | "Gegenpressing";
 
+export interface ClubTrophy {
+  competition: string; // e.g. "League Title", "Cup Title"
+  wonAt: string;       // display date string
+}
+
 export interface ClubOwnership {
   clubId: string;
   purchasedAt: number;
@@ -70,6 +75,7 @@ export interface ClubOwnership {
   losses: number;
   totalGoalsFor: number;
   totalGoalsAgainst: number;
+  trophies?: ClubTrophy[]; // honours won while under player ownership
 }
 
 export interface Team {
@@ -323,7 +329,8 @@ export interface Profile {
   createdTime: number;
   purchasedItems?: PurchasedItem[];
   bankrollHistory?: { timestamp: number; balance: number; detail: string }[];
-  ownedTeamId?: string; // ID of team they've purchased and manage
+  ownedTeamId?: string; // active/primary owned club (also the destination for signings)
+  ownedTeamIds?: string[]; // all clubs the player owns (multi-club support)
   betBuilderTickets?: BetBuilderTicket[];
   challenges?: Challenge[];
 }
@@ -358,6 +365,7 @@ export interface PurchasedItem {
   imageUrl?: string;
   category?: LuxuryCategory;
   rarity?: ItemRarity;
+  teamId?: string; // for "Football Clubs" purchases: which club this item represents
 }
 
 export interface TipsterTip {

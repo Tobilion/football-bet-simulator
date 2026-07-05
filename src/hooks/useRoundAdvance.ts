@@ -56,6 +56,22 @@ interface UseRoundAdvanceDeps {
   onTransferToast: (msg: string) => void;
 }
 
+// Append a trophy to a champion club's ownership record, but only if the player owns it.
+function awardTrophyToOwnedChampion(
+  teamsList: Team[],
+  championId: string | undefined,
+  ownedIds: string[],
+  competition: string,
+): Team[] {
+  if (!championId || !ownedIds.includes(championId)) return teamsList;
+  const trophy = { competition, wonAt: new Date().toLocaleDateString() };
+  return teamsList.map((t) =>
+    t.id === championId && t.ownership
+      ? { ...t, ownership: { ...t.ownership, trophies: [...(t.ownership.trophies ?? []), trophy] } }
+      : t,
+  );
+}
+
 export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
   const {
     gameMode,
@@ -112,7 +128,7 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
         userProfile,
         userBid,
       );
-      updatedTeamsList = applyTransferResultsToTeams(updatedTeamsList, resolvedListings);
+      updatedTeamsList = applyTransferResultsToTeams(updatedTeamsList, resolvedListings, userProfile.ownedTeamId);
       toastMsg = toastMessage;
       setTransferListings(resolvedListings.map((l) => ({
         ...l,
@@ -164,6 +180,7 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
       (gameMode === "TOURNAMENT" && currentRoundIndex === 4) || isLeagueCompleted;
 
     let championName = "Champion";
+    const ownedIds = userProfile.ownedTeamIds ?? (userProfile.ownedTeamId ? [userProfile.ownedTeamId] : []);
     let nextRoundIdx = currentRoundIndex;
     let nextFixturesList = [...fixtures];
     let nextTipsterTickets: typeof tipsterTickets = {};
@@ -186,6 +203,7 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
         return (b.goalsScored - b.goalsConceded) - (a.goalsScored - a.goalsConceded);
       });
       championName = leagueSorted[0]?.name ?? "Champion";
+      const leagueChampionId = leagueSorted[0]?.id;
       const allTeamsWithDivisions = applyRelegationPromotion(
         [...teams, ...updatedTeamsList.filter((ut) => !teams.find((t) => t.id === ut.id))],
         completedFixtures,
@@ -196,7 +214,7 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
       });
       const { teams: newSeasonTeams, fixtures: newSeasonFixtures } = initializeNewLeagueSeason(mergedAll);
       nextRoundIdx = 0;
-      updatedTeamsList = newSeasonTeams;
+      updatedTeamsList = awardTrophyToOwnedChampion(newSeasonTeams, leagueChampionId, ownedIds, "League Title");
       nextFixturesList = newSeasonFixtures;
       nextTipsterTickets = generateTipsterBetsForRound(updatedTipsters, newSeasonFixtures, newSeasonTeams);
     } else {
@@ -205,6 +223,7 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
       if (finalFx) {
         const winnerId = finalFx.homeScore > finalFx.awayScore ? finalFx.homeTeamId : finalFx.awayTeamId;
         championName = updatedTeamsList.find((t) => t.id === winnerId)?.name ?? "Champion";
+        updatedTeamsList = awardTrophyToOwnedChampion(updatedTeamsList, winnerId, ownedIds, "Cup Title");
       }
     }
 

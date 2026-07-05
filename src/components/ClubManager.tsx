@@ -8,6 +8,7 @@ import { formatMoney } from "../utils";
 
 interface ClubManagerProps {
   ownedTeamId: string;
+  ownedTeamIds?: string[];
   teams: Team[];
   balance: number;
   onUpdateOwnership: (teamId: string, updates: Partial<ClubOwnership>) => void;
@@ -52,6 +53,7 @@ function positionColor(pos: string) {
 
 export const ClubManager: React.FC<ClubManagerProps> = ({
   ownedTeamId,
+  ownedTeamIds,
   teams,
   balance,
   onUpdateOwnership,
@@ -60,7 +62,11 @@ export const ClubManager: React.FC<ClubManagerProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<"overview" | "squad" | "tactics" | "finance">("overview");
 
-  const team = useMemo(() => teams.find(t => t.id === ownedTeamId), [teams, ownedTeamId]);
+  const ownedIds = (ownedTeamIds && ownedTeamIds.length > 0) ? ownedTeamIds : (ownedTeamId ? [ownedTeamId] : []);
+  const [selectedClubId, setSelectedClubId] = useState<string>(ownedTeamId);
+  const activeId = ownedIds.includes(selectedClubId) ? selectedClubId : (ownedIds[0] ?? ownedTeamId);
+
+  const team = useMemo(() => teams.find(t => t.id === activeId), [teams, activeId]);
   const ownership = team?.ownership;
 
   const starters = useMemo(() => {
@@ -186,6 +192,25 @@ export const ClubManager: React.FC<ClubManagerProps> = ({
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 max-w-6xl mx-auto animate-fade-in">
+      {/* Multi-club switcher */}
+      {ownedIds.length > 1 && (
+        <div className="flex gap-2 flex-wrap">
+          {ownedIds.map((id) => {
+            const t = teams.find((tt) => tt.id === id);
+            if (!t) return null;
+            const isActive = id === activeId;
+            const trophyCount = t.ownership?.trophies?.length ?? 0;
+            return (
+              <button key={id} onClick={() => setSelectedClubId(id)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${isActive ? "border-emerald-400 bg-emerald-400/10 text-emerald-300" : "border-white/10 text-slate-400 hover:text-white hover:bg-white/5"}`}>
+                <span className="w-4 h-4 rounded-full inline-block" style={{ backgroundColor: t.primaryColor }} />
+                {t.shortName}
+                {trophyCount > 0 && <span className="text-amber-400">🏆{trophyCount}</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {/* Header */}
       <div className="glass-panel p-4 flex items-center gap-4 border border-white/10 rounded-2xl">
         <div
@@ -229,6 +254,29 @@ export const ClubManager: React.FC<ClubManagerProps> = ({
       {activeTab === "overview" && (
         <div className="space-y-4">
           <PitchView />
+          {(ownership?.trophies?.length ?? 0) > 0 ? (
+            <div className="glass-panel p-4 border border-amber-500/20 rounded-2xl">
+              <div className="flex items-center gap-2 mb-3">
+                <Trophy size={16} className="text-amber-400" />
+                <h3 className="text-sm font-black text-amber-300 uppercase tracking-wide">Trophy Cabinet — {team.shortName}</h3>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(ownership?.trophies ?? []).map((tr, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-1.5">
+                    <span className="text-lg">🏆</span>
+                    <div>
+                      <p className="text-[11px] font-bold text-amber-200">{tr.competition}</p>
+                      <p className="text-[9px] text-slate-400 font-mono">{tr.wonAt}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="glass-panel p-3 border border-white/5 rounded-2xl text-center text-[11px] text-slate-500 font-mono">
+              🏆 No trophies yet — win your league or cup to fill {team.shortName}'s cabinet.
+            </div>
+          )}
 
           {/* Stats row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

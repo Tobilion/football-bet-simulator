@@ -94,6 +94,7 @@ export function useProfile(deps: UseProfileDeps) {
       imageUrl: itemDetails.imageUrl,
       category: itemDetails.category,
       rarity: itemDetails.rarity,
+      teamId: itemDetails.category === "Football Clubs" ? itemDetails.teamId : undefined,
     };
 
     let nextTeams = teams;
@@ -127,14 +128,15 @@ export function useProfile(deps: UseProfileDeps) {
       }
     }
 
+    const isClub = itemDetails.category === "Football Clubs" && itemDetails.teamId;
+    const prevIds = userProfile.ownedTeamIds ?? (userProfile.ownedTeamId ? [userProfile.ownedTeamId] : []);
+    const nextIds = isClub ? Array.from(new Set([...prevIds, itemDetails.teamId])) : prevIds;
     const nextProfile: Profile = {
       ...userProfile,
       balance: userProfile.balance - itemDetails.price,
       purchasedItems: [...(userProfile.purchasedItems || []), newItem],
-      ownedTeamId:
-        itemDetails.category === "Football Clubs" && itemDetails.teamId
-          ? itemDetails.teamId
-          : userProfile.ownedTeamId,
+      ownedTeamIds: nextIds,
+      ownedTeamId: isClub ? (userProfile.ownedTeamId ?? itemDetails.teamId) : userProfile.ownedTeamId,
     };
     setUserProfile(nextProfile);
     persist(nextProfile, nextTeams);
@@ -194,24 +196,30 @@ export function useProfile(deps: UseProfileDeps) {
     persist(nextProfile, nextTeams);
   };
 
-  const handleLiquidateVIPItem = (item: { id: string; worth: number; category?: string }) => {
+  const handleLiquidateVIPItem = (item: { id: string; worth: number; category?: string; teamId?: string }) => {
     if (!userProfile) return;
     const isClubSale = item.category === "Football Clubs";
+    const soldTeamId =
+      item.teamId ??
+      (userProfile.purchasedItems || []).find((i) => i.id === item.id)?.teamId ??
+      userProfile.ownedTeamId;
+    const prevIds = userProfile.ownedTeamIds ?? (userProfile.ownedTeamId ? [userProfile.ownedTeamId] : []);
     let nextTeams = teams;
-    if (isClubSale && userProfile.ownedTeamId) {
-      // Strip ownership from the sold club so it can be purchased again
-      nextTeams = teams.map((t) =>
-        t.id === userProfile.ownedTeamId ? { ...t, ownership: undefined } : t,
-      );
+    let nextIds = prevIds;
+    let nextActive = userProfile.ownedTeamId;
+    if (isClubSale && soldTeamId) {
+      // Strip ownership from just the sold club so it can be purchased again
+      nextTeams = teams.map((t) => (t.id === soldTeamId ? { ...t, ownership: undefined } : t));
       setTeams(nextTeams);
+      nextIds = prevIds.filter((id) => id !== soldTeamId);
+      nextActive = userProfile.ownedTeamId === soldTeamId ? nextIds[0] : userProfile.ownedTeamId;
     }
     const nextProfile: Profile = {
       ...userProfile,
       balance: userProfile.balance + item.worth,
-      purchasedItems: (userProfile.purchasedItems || []).filter(
-        (i) => i.id !== item.id,
-      ),
-      ownedTeamId: isClubSale ? undefined : userProfile.ownedTeamId,
+      purchasedItems: (userProfile.purchasedItems || []).filter((i) => i.id !== item.id),
+      ownedTeamIds: nextIds,
+      ownedTeamId: nextActive,
     };
     setUserProfile(nextProfile);
     persist(nextProfile, nextTeams);

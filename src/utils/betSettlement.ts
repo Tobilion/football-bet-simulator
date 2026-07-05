@@ -22,6 +22,12 @@ export function settlePendingTickets(
     // Multi-single tickets settle per leg: each winning leg pays its own
     // stake x odds, independent of the other legs.
     if (ticket.type === "SINGLE" && ticket.selectionStakes) {
+      // If any leg's fixture hasn't been played yet, hold the whole ticket
+      // pending rather than silently treating that leg as a loss ("cut").
+      const legMissing = ticket.selections.some(
+        (sel) => !completedFixtures.find((f) => f.id === sel.fixtureId),
+      );
+      if (legMissing) return ticket;
       let payout = 0;
       ticket.selections.forEach((sel) => {
         const match = completedFixtures.find((f) => f.id === sel.fixtureId);

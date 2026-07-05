@@ -1,4 +1,4 @@
-import { Team, Player, TransferListing, Profile } from "../types";
+import { Team, Player, TransferListing, Profile, ClubOwnership } from "../types";
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -101,27 +101,47 @@ export function generateTransferListings(
       listedAtRound: roundIndex,
       expiresAtRound: roundIndex + 2,
       status: "OPEN",
-      bids: generateAIBids(team, value),
+      bids: generateAIBids(team, value, teams),
     };
   });
 
   return [...active, ...newListings];
 }
 
-/** AI clubs make initial bids based on team rating */
+/** AI clubs make initial bids. Bidders are REAL rival clubs so the player actually moves
+ *  to a real squad on sale (previously used fake "ai-bidder-N" ids and the player vanished). */
 function generateAIBids(
   listedTeam: Team,
   value: number,
+  teams: Team[],
 ): TransferListing["bids"] {
-  // 1-2 AI clubs bid
-  const numBidders = Math.floor(Math.random() * 2) + 1;
-  const bids: TransferListing["bids"] = [];
-  for (let i = 0; i < numBidders; i++) {
-    const bidderId = `ai-bidder-${i}`;
-    const amount = Math.round(value * (0.75 + Math.random() * 0.35));
-    bids.push({ bidderId, amount });
+  const buyers = teams.filter((t) => t.id !== listedTeam.id && !t.ownership);
+  if (buyers.length === 0) return [];
+  const numBidders = Math.min(buyers.length, Math.floor(Math.random() * 2) + 1);
+  const chosen = [...buyers].sort(() => Math.random() - 0.5).slice(0, numBidders);
+  return chosen.map((b) => ({
+    bidderId: b.id,
+    amount: Math.round(value * (0.75 + Math.random() * 0.35)),
+  }));
+}
+
+/** Slot a new signing into the owner's XI: fill an empty slot, or bump the weakest
+ *  same-position starter (else the weakest starter) if the signing is an upgrade. */
+function integrateSigningIntoXI(ownership: ClubOwnership, signing: Player, squad: Player[]): ClubOwnership {
+  const starters = ownership.starterIds ?? [];
+  if (starters.includes(signing.id)) return ownership;
+  if (starters.length < 11) return { ...ownership, starterIds: [...starters, signing.id] };
+  const starterPlayers = starters
+    .map((id) => squad.find((p) => p.id === id))
+    .filter((p): p is Player => !!p);
+  if (starterPlayers.length === 0) return ownership;
+  const samePos = starterPlayers.filter((p) => p.position === signing.position);
+  const pool = samePos.length > 0 ? samePos : starterPlayers;
+  const weakest = pool.reduce((min, p) => (p.rating < min.rating ? p : min), pool[0]);
+  if (signing.rating > weakest.rating) {
+    return { ...ownership, starterIds: starters.map((id) => (id === weakest.id ? signing.id : id)) };
   }
-  return bids;
+  return ownership;
 }
 
 // ──────────────────────────────────────────────
@@ -198,6 +218,7 @@ export function resolveTransferAuctions(
 export function applyTransferResultsToTeams(
   teams: Team[],
   resolvedListings: TransferListing[],
+  ownedTeamId?: string,
 ): Team[] {
   let updatedTeams = teams.map((t) => ({ ...t, players: [...t.players] }));
 
@@ -210,32 +231,27 @@ export function applyTransferResultsToTeams(
     const player = sourceTeam.players.find((p) => p.id === listing.playerId);
     if (!player) continue;
 
-    const destinationTeamId =
-      listing.highestBidder === "USER"
-        ? null // will be the user's owned team — handled below
-        : `ai-dest-${listing.highestBidder}`; // conceptual AI dest, mapped below
+    // Resolve the destination: the user's owned club for USER wins, otherwise the
+    // real rival club that placed the winning bid.
+    const destId = listing.highestBidder === "USER" ? ownedTeamId : listing.highestBidder;
+    const destTeam = destId ? updatedTeams.find((t) => t.id === destId) : undefined;
 
-    // For AI-to-AI transfers, just remove from source (no team to add to)
-    // For user wins, move to user's ownedTeamId
-    if (listing.highestBidder === "USER") {
-      // Remove from source
-      updatedTeams = updatedTeams.map((t) =>
-        t.id === listing.fromTeamId
-          ? { ...t, players: t.players.filter((p) => p.id !== listing.playerId) }
-          : t,
-      );
-      // We'll need ownedTeamId — return as-is here; App.tsx injects it
-      // Store the player in a placeholder via the listing metadata — handled by useTransferMarket
-    } else {
-      // AI-to-AI: remove from source team only (no effect on user)
-      updatedTeams = updatedTeams.map((t) =>
-        t.id === listing.fromTeamId
-          ? { ...t, players: t.players.filter((p) => p.id !== listing.playerId) }
-          : t,
-      );
-    }
+    // If we can't resolve a real destination (or it's the same club), leave the player
+    // where they are — never silently delete a player from the game.
+    if (!destTeam || destTeam.id === listing.fromTeamId) continue;
 
-    void destinationTeamId; // suppress unused var warning
+    const moved: Player = { ...player, teamId: destTeam.id };
+    updatedTeams = updatedTeams.map((t) => {
+      if (t.id === listing.fromTeamId) {
+        return { ...t, players: t.players.filter((p) => p.id !== listing.playerId) };
+      }
+      if (t.id === destTeam.id) {
+        const players = [...t.players, moved];
+        const ownership = t.ownership ? integrateSigningIntoXI(t.ownership, moved, players) : t.ownership;
+        return { ...t, players, ownership };
+      }
+      return t;
+    });
   }
 
   return updatedTeams;

@@ -506,6 +506,7 @@ export default function App() {
           {activeTab === "myclub" && userProfile.ownedTeamId && (
             <ClubManager
               ownedTeamId={userProfile.ownedTeamId}
+              ownedTeamIds={userProfile.ownedTeamIds}
               teams={teams}
               balance={userProfile.balance}
               onUpdateOwnership={profileHook.handleUpdateClubOwnership}
@@ -538,6 +539,7 @@ export default function App() {
         {!["casino","store","feed","myclub","transfers"].includes(activeTab) && (
           <BettingSlip
             selections={selectedBets} fixtures={fixtures} teams={teams}
+            currentRoundIndex={userProfile.currentRoundIndex}
             onRemoveSelection={bettingHook.handleRemoveSelection}
             onClearAll={bettingHook.handleClearAllSelections}
             balance={userProfile.balance}
