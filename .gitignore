@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+CLAUDE.md
+MASTER_UPGRADE_PROMPT.md
+BUG_HUNT_PROMPT.md
+BUGS.md
+.kiro/
