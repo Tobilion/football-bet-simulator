@@ -157,7 +157,7 @@ export function resolveTransferAuctions(
   listings: TransferListing[],
   teams: Team[],
   userProfile: Profile,
-  userBid: { listingId: string; amount: number } | null,
+  userBids: { listingId: string; amount: number }[],
 ): ResolveResult {
   const toasts: string[] = [];
 
@@ -166,8 +166,9 @@ export function resolveTransferAuctions(
 
     // Merge user bid if applicable
     const allBids = [...listing.bids];
-    if (userBid && userBid.listingId === listing.id) {
-      allBids.push({ bidderId: "USER", amount: userBid.amount });
+    const uBid = userBids.find((b) => b.listingId === listing.id);
+    if (uBid) {
+      allBids.push({ bidderId: "USER", amount: uBid.amount });
     }
 
     if (allBids.length === 0) {
@@ -189,11 +190,6 @@ export function resolveTransferAuctions(
     }
 
     if (isUserWin) {
-      const canAfford = userProfile.balance >= winning.amount;
-      if (!canAfford) {
-        toasts.push(`Could not sign ${playerName} — insufficient funds.`);
-        return { ...listing, status: "EXPIRED" as const };
-      }
       toasts.push(`You signed ${playerName} for $${winning.amount.toLocaleString()}!`);
     }
 

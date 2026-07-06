@@ -28,7 +28,7 @@ interface UseRoundAdvanceDeps {
   tipsterTickets: { [id: string]: BetTicket };
   isSimulating: boolean;
   transferListings: TransferListing[];
-  userBid: { listingId: string; amount: number } | null;
+  userBids: { listingId: string; amount: number }[];
   setUserProfile: React.Dispatch<React.SetStateAction<Profile | null>>;
   setTeams: React.Dispatch<React.SetStateAction<Team[]>>;
   setFixtures: React.Dispatch<React.SetStateAction<Fixture[]>>;
@@ -52,7 +52,7 @@ interface UseRoundAdvanceDeps {
     } | null>
   >;
   setTransferListings: React.Dispatch<React.SetStateAction<TransferListing[]>>;
-  setUserBid: React.Dispatch<React.SetStateAction<{ listingId: string; amount: number } | null>>;
+  setUserBids: React.Dispatch<React.SetStateAction<{ listingId: string; amount: number }[]>>;
   onTransferToast: (msg: string) => void;
 }
 
@@ -83,7 +83,7 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
     tipsterTickets,
     isSimulating,
     transferListings,
-    userBid,
+    userBids,
     setUserProfile,
     setTeams,
     setFixtures,
@@ -95,7 +95,7 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
     setShowWinnerCelebration,
     setOwnerRevenueReport,
     setTransferListings,
-    setUserBid,
+    setUserBids,
     onTransferToast,
   } = deps;
 
@@ -121,20 +121,22 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
     // 1. Settle transfer auctions
     let updatedTeamsList = [...teams];
     let toastMsg = "";
+    let resolvedTransferListings: TransferListing[] = [];
     if (transferListings.length > 0) {
       const { resolvedListings, toastMessage } = resolveTransferAuctions(
         transferListings,
         updatedTeamsList,
         userProfile,
-        userBid,
+        userBids,
       );
+      resolvedTransferListings = resolvedListings;
       updatedTeamsList = applyTransferResultsToTeams(updatedTeamsList, resolvedListings, userProfile.ownedTeamId);
       toastMsg = toastMessage;
       setTransferListings(resolvedListings.map((l) => ({
         ...l,
         status: l.highestBidder === "USER" ? "SOLD" : l.status === "OPEN" ? "EXPIRED" : l.status,
       })));
-      setUserBid(null);
+      setUserBids([]);
       if (toastMsg) { onTransferToast(toastMsg); addToast({ type: "transfer", title: "🔄 Transfer", message: toastMsg, duration: 6000 }); }
     }
 
@@ -265,19 +267,31 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
       }
     }
 
-    // 7. Update transfer balance for auction winners
+    // 7. Calculate outbid refunds for users (money was deducted when placing bid)
     let transferBalanceAdjust = 0;
-    if (userBid && transferListings.length > 0) {
-      const won = transferListings.find(
-        (l) => l.id === userBid.listingId && l.status === "OPEN",
-      );
-      if (won) {
-        const allBids = [...won.bids, { bidderId: "USER" as const, amount: userBid.amount }];
-        const maxBid = Math.max(...allBids.map((b) => b.amount));
-        if (userBid.amount >= maxBid) {
-          transferBalanceAdjust = -userBid.amount;
+    const refundLogs: { timestamp: number; balance: number; detail: string }[] = [];
+    let runningBalance = userProfile.balance + totalWinPayoutSum + bbPayoutSum + ownershipRevenue;
+
+    if (userBids && userBids.length > 0 && resolvedTransferListings.length > 0) {
+      userBids.forEach((bid) => {
+        const listing = resolvedTransferListings.find(l => l.id === bid.listingId);
+        const won = listing && listing.status === "SOLD" && listing.highestBidder === "USER";
+        if (!won) {
+          // Find player name for log details
+          let playerName = "Player";
+          for (const team of teams) {
+            const p = team.players.find((pl) => pl.id === (listing?.playerId || ""));
+            if (p) { playerName = p.name; break; }
+          }
+          transferBalanceAdjust += bid.amount;
+          runningBalance += bid.amount;
+          refundLogs.push({
+            timestamp: Date.now(),
+            balance: runningBalance,
+            detail: `Outbid refund for ${playerName}: +$${bid.amount}`,
+          });
         }
-      }
+      });
     }
 
     const nextBalance =
@@ -321,6 +335,10 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
       betBuilderTickets: finalBbTickets,
       currentRoundIndex: nextRoundIdx,
       challenges: evaluatedChallenges,
+      bankrollHistory: [
+        ...(userProfile.bankrollHistory || []),
+        ...refundLogs,
+      ],
     };
 
     // 9. Record completed season into career stats (fs_career_v1)

@@ -88,86 +88,80 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
   const teamNum = isNaN(parseInt(teamId)) ? 1 : parseInt(teamId);
   const regionKey = (region && playerNamesByRegion[region]) ? region : "ENG";
   const pool = playerNamesByRegion[regionKey];
-  
-  // 1 Goalkeeper (GK)
-  const gkSeed = (teamNum * 17 + 1) % pool.first.length;
-  const gkLastSeed = (teamNum * 23 + 1 * 7 + 11) % pool.last.length;
-  const gkFirst = pool.first[gkSeed] || "Keeper";
-  const gkLast = pool.last[gkLastSeed] || "Safe";
-  const gkName = `${gkFirst} ${gkLast} (GK)`;
-  const gkRating = Math.max(70, Math.min(Math.round(rating * 18 + 5 + (teamNum % 5)), 98));
-  
-  const gkAbils = {
-    diving: Math.max(60, Math.min(99, Math.round(gkRating + (teamNum % 2) - 1))),
-    handling: Math.max(60, Math.min(99, Math.round(gkRating - 2))),
-    kicking: Math.max(55, Math.min(99, Math.round(gkRating - (teamNum % 4) - 3))),
-    reflexes: Math.max(65, Math.min(99, Math.round(gkRating + (teamNum % 3) + 2))),
-    speed: Math.max(40, Math.min(95, Math.round(gkRating - 15 - (teamNum % 10)))),
-    positioning: Math.max(60, Math.min(99, Math.round(gkRating + 1)))
-  };
 
-  players.push({
-    id: `${startId}-1`,
-    name: gkName,
-    teamId,
-    position: "GK",
-    rating: gkRating,
-    age: generatePlayerAge("GK"),
-    fatigue: 0,
-    injured: false,
-    injuryRecoveryMatches: 0,
-    seasonStats: generateEmptySeasonStats(),
-    goals: 0,
-    assists: 0,
-    saves: 0,
-    yellowCards: 0,
-    redCards: 0,
-    matchesPlayed: 0,
-    abilities: gkAbils
-  });
+  // Helper to generate GK
+  const makeGK = (idNum: number, isBench: boolean) => {
+    const gkSeed = (teamNum * 17 + idNum) % pool.first.length;
+    const gkLastSeed = (teamNum * 23 + idNum * 7 + 11) % pool.last.length;
+    const gkFirst = pool.first[gkSeed] || "Keeper";
+    const gkLast = pool.last[gkLastSeed] || "Safe";
+    const gkName = `${gkFirst} ${gkLast} ${isBench ? "(GK - Res)" : "(GK)"}`;
+    let gkRating = Math.max(70, Math.min(Math.round(rating * 18 + 5 + (teamNum % 5)), 98));
+    if (isBench) gkRating = Math.max(60, gkRating - 10);
 
-  // 4 Defenders (DEF)
-  for (let i = 2; i <= 5; i++) {
-    const fSeed = (teamNum * 17 + i * 3) % pool.first.length;
-    const lSeed = (teamNum * 23 + i * 7 + 11) % pool.last.length;
-    const defFirst = pool.first[fSeed] || "Defender";
-    const defLast = pool.last[lSeed] || "Wall";
-    const defName = `${defFirst} ${defLast}`;
-    const defRating = Math.max(68, Math.min(Math.round(rating * 17 + 3 + (fSeed % 8)), 95));
-
-    const defAbils = {
-      pace: Math.max(50, Math.min(99, Math.round(defRating - 8 + (fSeed % 5)))),
-      shooting: Math.max(30, Math.min(85, Math.round(defRating - 25 + (fSeed % 10)))),
-      passing: Math.max(55, Math.min(95, Math.round(defRating - 5 + (fSeed % 4)))),
-      dribbling: Math.max(50, Math.min(92, Math.round(defRating - 10 + (fSeed % 3)))),
-      defending: Math.max(70, Math.min(99, Math.round(defRating + 4))),
-      physical: Math.max(65, Math.min(99, Math.round(defRating + 2 + (fSeed % 3))))
+    const gkAbils = {
+      diving: Math.max(50, Math.min(99, Math.round(gkRating + (teamNum % 2) - 1))),
+      handling: Math.max(50, Math.min(99, Math.round(gkRating - 2))),
+      kicking: Math.max(45, Math.min(99, Math.round(gkRating - (teamNum % 4) - 3))),
+      reflexes: Math.max(55, Math.min(99, Math.round(gkRating + (teamNum % 3) + 2))),
+      speed: Math.max(35, Math.min(95, Math.round(gkRating - 15 - (teamNum % 10)))),
+      positioning: Math.max(50, Math.min(99, Math.round(gkRating + 1)))
     };
 
-    players.push({
-      id: `${startId}-${i}`,
+    return {
+      id: `${startId}-${idNum}`,
+      name: gkName,
+      teamId,
+      position: "GK" as const,
+      rating: gkRating,
+      age: generatePlayerAge("GK"),
+      fatigue: 0,
+      injured: false,
+      injuryRecoveryMatches: 0,
+      seasonStats: generateEmptySeasonStats(),
+      goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0,
+      abilities: gkAbils
+    };
+  };
+
+  // Helper to generate Defender
+  const makeDEF = (idNum: number, isBench: boolean) => {
+    const fSeed = (teamNum * 17 + idNum * 3) % pool.first.length;
+    const lSeed = (teamNum * 23 + idNum * 7 + 11) % pool.last.length;
+    const defFirst = pool.first[fSeed] || "Defender";
+    const defLast = pool.last[lSeed] || "Wall";
+    const defName = `${defFirst} ${defLast}${isBench ? " (Res)" : ""}`;
+    let defRating = Math.max(68, Math.min(Math.round(rating * 17 + 3 + (fSeed % 8)), 95));
+    if (isBench) defRating = Math.max(58, defRating - 8);
+
+    const defAbils = {
+      pace: Math.max(40, Math.min(99, Math.round(defRating - 8 + (fSeed % 5)))),
+      shooting: Math.max(20, Math.min(85, Math.round(defRating - 25 + (fSeed % 10)))),
+      passing: Math.max(45, Math.min(95, Math.round(defRating - 5 + (fSeed % 4)))),
+      dribbling: Math.max(40, Math.min(92, Math.round(defRating - 10 + (fSeed % 3)))),
+      defending: Math.max(60, Math.min(99, Math.round(defRating + 4))),
+      physical: Math.max(55, Math.min(99, Math.round(defRating + 2 + (fSeed % 3))))
+    };
+
+    return {
+      id: `${startId}-${idNum}`,
       name: defName,
       teamId,
-      position: "DEF",
+      position: "DEF" as const,
       rating: defRating,
       age: generatePlayerAge("DEF"),
       fatigue: 0,
       injured: false,
       injuryRecoveryMatches: 0,
       seasonStats: generateEmptySeasonStats(),
-      goals: 0,
-      assists: 0,
-      saves: 0,
-      yellowCards: 0,
-      redCards: 0,
-      matchesPlayed: 0,
+      goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0,
       abilities: defAbils
-    });
-  }
+    };
+  };
 
-  // 4 Midfielders (MID)
-  for (let i = 6; i <= 9; i++) {
-    if (superstar.position === "MID" && i === 6) {
+  // Helper to generate Midfielder
+  const makeMID = (idNum: number, isBench: boolean, isSuper: boolean) => {
+    if (isSuper) {
       const superRating = superstar.rating;
       const superAbils = {
         pace: Math.max(65, Math.min(99, Math.round(superRating - 3))),
@@ -177,86 +171,70 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
         defending: Math.max(50, Math.min(95, Math.round(superRating - 10))),
         physical: Math.max(60, Math.min(95, Math.round(superRating - 4)))
       };
-
-      players.push({
-        id: `${startId}-${i}`,
+      return {
+        id: `${startId}-${idNum}`,
         name: superstar.name,
         teamId,
-        position: "MID",
+        position: "MID" as const,
         rating: superRating,
         age: generatePlayerAge("MID"),
         fatigue: 0,
         injured: false,
         injuryRecoveryMatches: 0,
         seasonStats: generateEmptySeasonStats(),
-        goals: 0,
-        assists: 0,
-        saves: 0,
-        yellowCards: 0,
-        redCards: 0,
-        matchesPlayed: 0,
+        goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0,
         abilities: superAbils
-      });
-      continue;
+      };
     }
 
-    const fSeed = (teamNum * 17 + i * 3) % pool.first.length;
-    const lSeed = (teamNum * 23 + i * 7 + 11) % pool.last.length;
+    const fSeed = (teamNum * 17 + idNum * 3) % pool.first.length;
+    const lSeed = (teamNum * 23 + idNum * 7 + 11) % pool.last.length;
     const midFirst = pool.first[fSeed] || "Midfielder";
     const midLast = pool.last[lSeed] || "Sparks";
-    const midName = `${midFirst} ${midLast}`;
-    const midRating = Math.max(68, Math.min(Math.round(rating * 17.5 + 4 + (fSeed % 6)), 94));
+    const midName = `${midFirst} ${midLast}${isBench ? " (Res)" : ""}`;
+    let midRating = Math.max(68, Math.min(Math.round(rating * 17.5 + 4 + (fSeed % 6)), 94));
+    if (isBench) midRating = Math.max(58, midRating - 8);
 
     const midAbils = {
-      pace: Math.max(55, Math.min(99, Math.round(midRating - 4 + (fSeed % 5)))),
-      shooting: Math.max(50, Math.min(95, Math.round(midRating - 8 + (fSeed % 6)))),
-      passing: Math.max(65, Math.min(99, Math.round(midRating + 4 + (fSeed % 3)))),
-      dribbling: Math.max(65, Math.min(99, Math.round(midRating + 3))),
-      defending: Math.max(40, Math.min(80, Math.round(midRating - 12 + (fSeed % 5)))),
-      physical: Math.max(55, Math.min(92, Math.round(midRating - 3 + (fSeed % 4))))
+      pace: Math.max(45, Math.min(99, Math.round(midRating - 4 + (fSeed % 5)))),
+      shooting: Math.max(40, Math.min(95, Math.round(midRating - 8 + (fSeed % 6)))),
+      passing: Math.max(55, Math.min(99, Math.round(midRating + 4 + (fSeed % 3)))),
+      dribbling: Math.max(55, Math.min(99, Math.round(midRating + 3))),
+      defending: Math.max(30, Math.min(80, Math.round(midRating - 12 + (fSeed % 5)))),
+      physical: Math.max(45, Math.min(92, Math.round(midRating - 3 + (fSeed % 4))))
     };
 
-    players.push({
-      id: `${startId}-${i}`,
+    return {
+      id: `${startId}-${idNum}`,
       name: midName,
       teamId,
-      position: "MID",
+      position: "MID" as const,
       rating: midRating,
       age: generatePlayerAge("MID"),
       fatigue: 0,
       injured: false,
       injuryRecoveryMatches: 0,
       seasonStats: generateEmptySeasonStats(),
-      goals: 0,
-      assists: 0,
-      saves: 0,
-      yellowCards: 0,
-      redCards: 0,
-      matchesPlayed: 0,
+      goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0,
       abilities: midAbils
-    });
-  }
+    };
+  };
 
-  // 3 Attackers (ATT)
-  for (let i = 19; i <= 21; i++) {
-    if (i === 19 && superstar.position === "ATT") {
-      players.push({
-        id: `${startId}-${i}`,
+  // Helper to generate Attacker
+  const makeATT = (idNum: number, isBench: boolean, isSuper: boolean) => {
+    if (isSuper) {
+      return {
+        id: `${startId}-${idNum}`,
         name: superstar.name,
         teamId,
-        position: "ATT",
+        position: "ATT" as const,
         rating: superstar.rating,
         age: generatePlayerAge("ATT"),
         fatigue: 0,
         injured: false,
         injuryRecoveryMatches: 0,
         seasonStats: generateEmptySeasonStats(),
-        goals: 0,
-        assists: 0,
-        saves: 0,
-        yellowCards: 0,
-        redCards: 0,
-        matchesPlayed: 0,
+        goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0,
         abilities: {
           pace: Math.min(99, superstar.rating + 2),
           shooting: Math.min(99, superstar.rating + 3),
@@ -265,46 +243,79 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
           defending: Math.max(20, superstar.rating - 35),
           physical: Math.max(55, superstar.rating - 5)
         }
-      });
-      continue;
+      };
     }
 
-    const fSeed = (teamNum * 17 + i * 3) % pool.first.length;
-    const lSeed = (teamNum * 23 + i * 7 + 11) % pool.last.length;
+    const fSeed = (teamNum * 17 + idNum * 3) % pool.first.length;
+    const lSeed = (teamNum * 23 + idNum * 7 + 11) % pool.last.length;
     const attFirst = pool.first[fSeed] || "Attacker";
     const attLast = pool.last[lSeed] || "Striker";
-    const attName = `${attFirst} ${attLast}`;
-    const attRating = Math.max(68, Math.min(Math.round(rating * 17 + 2 + (fSeed % 7)), 94));
+    const attName = `${attFirst} ${attLast}${isBench ? " (Res)" : ""}`;
+    let attRating = Math.max(68, Math.min(Math.round(rating * 17 + 2 + (fSeed % 7)), 94));
+    if (isBench) attRating = Math.max(58, attRating - 8);
 
     const attAbils = {
-      pace: Math.max(68, Math.min(99, Math.round(attRating + 3))),
-      shooting: Math.max(65, Math.min(99, Math.round(attRating + 4))),
-      passing: Math.max(55, Math.min(92, Math.round(attRating - 5 + (fSeed % 4)))),
-      dribbling: Math.max(65, Math.min(99, Math.round(attRating + 2))),
-      defending: Math.max(20, Math.min(65, Math.round(attRating - 30))),
-      physical: Math.max(55, Math.min(95, Math.round(attRating - 2 + (fSeed % 3))))
+      pace: Math.max(58, Math.min(99, Math.round(attRating + 3))),
+      shooting: Math.max(55, Math.min(99, Math.round(attRating + 4))),
+      passing: Math.max(45, Math.min(92, Math.round(attRating - 5 + (fSeed % 4)))),
+      dribbling: Math.max(55, Math.min(99, Math.round(attRating + 2))),
+      defending: Math.max(15, Math.min(65, Math.round(attRating - 30))),
+      physical: Math.max(45, Math.min(95, Math.round(attRating - 2 + (fSeed % 3))))
     };
 
-    players.push({
-      id: `${startId}-${i}`,
+    return {
+      id: `${startId}-${idNum}`,
       name: attName,
       teamId,
-      position: "ATT",
+      position: "ATT" as const,
       rating: attRating,
       age: generatePlayerAge("ATT"),
       fatigue: 0,
       injured: false,
       injuryRecoveryMatches: 0,
       seasonStats: generateEmptySeasonStats(),
-      goals: 0,
-      assists: 0,
-      saves: 0,
-      yellowCards: 0,
-      redCards: 0,
-      matchesPlayed: 0,
+      goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0,
       abilities: attAbils
-    });
-  }
+    };
+  };
+
+  // Add 11 starting players first
+  // 1. Goalkeeper (starter) - ID 1
+  players.push(makeGK(1, false));
+
+  // 2. 4 Defenders (starters) - IDs 3 to 6
+  players.push(makeDEF(3, false));
+  players.push(makeDEF(4, false));
+  players.push(makeDEF(5, false));
+  players.push(makeDEF(6, false));
+
+  // 3. 4 Midfielders (starters) - IDs 9 to 12
+  const hasSuperMid = superstar.position === "MID";
+  players.push(makeMID(9, false, hasSuperMid));
+  players.push(makeMID(10, false, false));
+  players.push(makeMID(11, false, false));
+  players.push(makeMID(12, false, false));
+
+  // 4. 2 Attackers (starters) - IDs 15 to 16
+  const hasSuperAtt = superstar.position === "ATT";
+  players.push(makeATT(15, false, hasSuperAtt));
+  players.push(makeATT(16, false, false));
+
+  // Add 7 reserve/bench players next
+  // 5. 1 Goalkeeper (reserve) - ID 2
+  players.push(makeGK(2, true));
+
+  // 6. 2 Defenders (reserves) - IDs 7 to 8
+  players.push(makeDEF(7, true));
+  players.push(makeDEF(8, true));
+
+  // 7. 2 Midfielders (reserves) - IDs 13 to 14
+  players.push(makeMID(13, true, false));
+  players.push(makeMID(14, true, false));
+
+  // 8. 2 Attackers (reserves) - IDs 17 to 18
+  players.push(makeATT(17, true, false));
+  players.push(makeATT(18, true, false));
 
   return players;
 }

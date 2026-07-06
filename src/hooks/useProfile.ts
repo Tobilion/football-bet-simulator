@@ -101,7 +101,12 @@ export function useProfile(deps: UseProfileDeps) {
     if (itemDetails.category === "Football Clubs" && itemDetails.teamId) {
       const targetTeam = teams.find((t) => t.id === itemDetails.teamId);
       if (targetTeam && !targetTeam.ownership) {
-        const defaultStarters = targetTeam.players.slice(0, 11).map((p) => p.id);
+        const isHealthy = (p: import("../types").Player) =>
+          !p.injured && (p.injuredRounds ?? 0) === 0 && (p.injuryRecoveryMatches ?? 0) === 0;
+        const gk = targetTeam.players.find(p => p.position === "GK" && isHealthy(p));
+        const outfield = targetTeam.players.filter(p => p.id !== gk?.id && isHealthy(p)).slice(0, gk ? 10 : 11);
+        const defaultStarters = (gk ? [gk, ...outfield] : outfield).slice(0, 11).map(p => p.id);
+
         const ownership: ClubOwnership = {
           clubId: targetTeam.id,
           purchasedAt: Date.now(),

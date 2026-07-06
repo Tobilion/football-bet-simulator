@@ -69,15 +69,19 @@ export const ClubManager: React.FC<ClubManagerProps> = ({
   const team = useMemo(() => teams.find(t => t.id === activeId), [teams, activeId]);
   const ownership = team?.ownership;
 
+  const isHealthy = (p: Player) =>
+    !p.injured && (p.injuredRounds ?? 0) === 0 && (p.injuryRecoveryMatches ?? 0) === 0;
+
   const starters = useMemo(() => {
-    if (!team || !ownership) return team?.players.slice(0, 11) ?? [];
+    if (!team || !ownership) return team?.players.filter(isHealthy).slice(0, 11) ?? [];
     const ids = new Set(ownership.starterIds);
-    const starters = team.players.filter(p => ids.has(p.id));
-    if (starters.length < 11) {
-      const rest = team.players.filter(p => !ids.has(p.id));
-      return [...starters, ...rest].slice(0, 11);
+    // Only keep starters who are healthy
+    const healthyStarters = team.players.filter(p => ids.has(p.id) && isHealthy(p));
+    if (healthyStarters.length < 11) {
+      const rest = team.players.filter(p => isHealthy(p) && !ids.has(p.id));
+      return [...healthyStarters, ...rest].slice(0, 11);
     }
-    return starters;
+    return healthyStarters;
   }, [team, ownership]);
 
   const subs = useMemo(() => {
@@ -167,10 +171,12 @@ export const ClubManager: React.FC<ClubManagerProps> = ({
   };
 
   const toggleStarter = (player: Player) => {
+    // Injured players cannot be added to starting XI
+    if (!isHealthy(player)) return;
     const currentIds = new Set(starters.map(p => p.id));
     let newIds: string[];
     if (currentIds.has(player.id)) {
-      // Remove from starters — add best sub instead
+      // Remove from starters — add best healthy sub instead
       newIds = starters.filter(p => p.id !== player.id).map(p => p.id);
     } else if (starters.length < 11) {
       newIds = [...starters.map(p => p.id), player.id];
@@ -383,23 +389,39 @@ export const ClubManager: React.FC<ClubManagerProps> = ({
             </div>
           </div>
 
-          {/* Subs */}
+          {/* Subs / Bench */}
           <div className="space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest font-mono">Bench ({subs.length})</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest font-mono">Bench ({subs.filter(isHealthy).length} fit · {subs.filter(p => !isHealthy(p)).length} unavailable)</p>
             <div className="space-y-1">
-              {subs.map((p) => (
-                <div
-                  key={p.id}
-                  onClick={() => toggleStarter(p)}
-                  className="flex items-center gap-3 p-2.5 rounded-lg bg-white/3 border border-white/5 cursor-pointer hover:bg-white/5 transition-all opacity-60 hover:opacity-100"
-                >
-                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-slate-900 bg-white/20 shrink-0" />
-                  <span className="text-xs font-bold text-slate-300 flex-1 truncate">{p.name}</span>
-                  <span className="text-[9px] font-mono text-slate-500 px-1.5 py-0.5 bg-white/5 rounded">{p.position}</span>
-                  <span className="text-xs font-black text-slate-400 w-8 text-right">{p.rating}</span>
-                  {p.injured && <span className="text-[8px] text-red-400 font-bold">INJ</span>}
-                </div>
-              ))}
+              {subs.map((p) => {
+                const healthy = isHealthy(p);
+                const injLabel = p.injured
+                  ? `Injured (${p.injuryRecoveryMatches ?? 0} matches left)`
+                  : p.injuredRounds && p.injuredRounds > 0
+                  ? `Suspended (${p.injuredRounds} rounds left)`
+                  : null;
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => healthy && toggleStarter(p)}
+                    className={`flex items-center gap-3 p-2.5 rounded-lg border transition-all ${
+                      healthy
+                        ? "bg-white/3 border-white/5 cursor-pointer hover:bg-white/5 opacity-60 hover:opacity-100"
+                        : "bg-red-500/5 border-red-500/10 cursor-not-allowed opacity-50"
+                    }`}
+                  >
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-slate-900 bg-white/20 shrink-0" />
+                    <span className="text-xs font-bold text-slate-300 flex-1 truncate">{p.name}</span>
+                    <span className="text-[9px] font-mono text-slate-500 px-1.5 py-0.5 bg-white/5 rounded">{p.position}</span>
+                    <span className="text-xs font-black text-slate-400 w-8 text-right">{p.rating}</span>
+                    {!healthy && (
+                      <span className="text-[8px] bg-red-500/20 text-red-400 font-bold px-1 py-0.5 rounded border border-red-500/20" title={injLabel ?? undefined}>
+                        {p.injured ? "INJ" : "SUSP"}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

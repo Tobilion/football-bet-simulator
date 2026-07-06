@@ -50,9 +50,13 @@ import { CareerStats } from "./components/CareerStats";
 import { loadCareerProfile } from "./utils/careerUtils";
 import { CareerProfile } from "./types";
 import { ToastContainer } from "./components/ui/Toast";
+import { OnboardingOverlay } from "./components/OnboardingOverlay";
 
 
 export default function App() {
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() =>
+    localStorage.getItem("cubet_onboarded") !== "true"
+  );
   const [activeSlot, setActiveSlot] = useState<number>(() =>
     parseInt(localStorage.getItem("fs_selected_game_slot") || "1"),
   );
@@ -88,9 +92,9 @@ export default function App() {
   });
   const { userProfile, setUserProfile, persist } = profileHook;
 
-  const { transferListings, setTransferListings, userBid, setUserBid,
+  const { transferListings, setTransferListings, userBids, setUserBids,
     transferToast, handlePlaceUserBid, handleWithdrawBid, showTransferToast } =
-    useTransferMarket(userProfile);
+    useTransferMarket({ userProfile, setUserProfile, persist, teams });
 
   const simHook = useSimulation({
     teams, userProfile, gameMode, activeSlot, fixtures, setFixtures, setActiveTab,
@@ -230,7 +234,7 @@ export default function App() {
     setIsSimulating(false);
     setShowWinnerCelebration(false);
     setTransferListings([]);
-    setUserBid(null);
+    setUserBids([]);
     setActiveTab("fixtures");
     if (simTimerRef.current) clearInterval(simTimerRef.current);
   };
@@ -266,7 +270,7 @@ export default function App() {
     setIsSimulating(false);
     setShowWinnerCelebration(false);
     setTransferListings([]);
-    setUserBid(null);
+    setUserBids([]);
     setActiveTab("fixtures");
     if (simTimerRef.current) clearInterval(simTimerRef.current);
   };
@@ -316,13 +320,12 @@ export default function App() {
     }
   };
 
-    // ─── Build handleAdvanceRound ───────────────────────────────────────
   const handleAdvanceRound = buildHandleAdvanceRound({
     gameMode, activeSlot, userProfile, teams, fixtures, tipsters, tipsterTickets,
-    isSimulating, transferListings, userBid,
+    isSimulating, transferListings, userBids,
     setUserProfile, setTeams, setFixtures, setTipsters, setTipsterTickets,
     setSelectedBets, setTicks, setActiveTab, setShowWinnerCelebration,
-    setOwnerRevenueReport, setTransferListings, setUserBid,
+    setOwnerRevenueReport, setTransferListings, setUserBids,
     onTransferToast: showTransferToast,
   });
 
@@ -394,20 +397,25 @@ export default function App() {
     void dummyUpdateSlot;
 
     return (
-      <WelcomeScreen
-        onKickoff={handleStartNewCampaign}
-        savedTournaments={savedTournaments}
-        savedLeagues={savedLeagues}
-        resumeActiveMode={handleResumeCampaign}
-        onDeleteSave={handleDeleteSave}
-      />
+      <>
+        {showOnboarding && <OnboardingOverlay onEnter={() => setShowOnboarding(false)} />}
+        <WelcomeScreen
+          onKickoff={handleStartNewCampaign}
+          savedTournaments={savedTournaments}
+          savedLeagues={savedLeagues}
+          resumeActiveMode={handleResumeCampaign}
+          onDeleteSave={handleDeleteSave}
+        />
+      </>
     );
   }
 
   const champion = getChampion();
 
   return (
-    <div id="app" className="h-screen w-screen bg-gradient-to-br from-[#0b0e14] via-[#05070a] to-[#121620] text-slate-100 flex flex-col overflow-hidden font-sans animate-fade-in">
+    <>
+      {showOnboarding && <OnboardingOverlay onEnter={() => setShowOnboarding(false)} />}
+      <div id="app" className="h-screen w-screen bg-gradient-to-br from-[#0b0e14] via-[#05070a] to-[#121620] text-slate-100 flex flex-col overflow-hidden font-sans animate-fade-in">
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -524,9 +532,10 @@ export default function App() {
               listings={transferListings}
               teams={teams}
               ownedTeamId={userProfile.ownedTeamId}
+              ownedTeamIds={userProfile.ownedTeamIds}
               currentRoundIndex={userProfile.currentRoundIndex}
               balance={userProfile.balance}
-              userBid={userBid}
+              userBids={userBids}
               onPlaceBid={handlePlaceUserBid}
               onWithdrawBid={handleWithdrawBid}
             />
@@ -612,5 +621,6 @@ export default function App() {
       )}
       <ToastContainer />
     </div>
+    </>
   );
 }

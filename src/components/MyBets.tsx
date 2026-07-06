@@ -3,6 +3,7 @@ import { BetTicket, BetBuilderTicket, Fixture, Team, MarketType } from "../types
 import { BetBuilderTicketsList } from "./BetBuilderTicketsList";
 import { calculateCashOutValue, isCashOutEligible, buildCurrentOddsMap } from "../utils/cashOutUtils";
 import { formatMoney } from "../utils";
+import { EmptyState } from "./ui/EmptyState";
 
 interface MyBetsProps {
   tickets: BetTicket[];
@@ -269,11 +270,11 @@ export const MyBets: React.FC<MyBetsProps> = ({ tickets, fixtures, teams, balanc
         </h3>
 
         {tickets.length === 0 ? (
-          <div className="glass-card border border-white/5 rounded-2xl p-12 text-center text-slate-500">
-            <span className="text-4xl mb-3 block opacity-40">🎫</span>
-            <p className="text-xs font-semibold text-slate-400">You haven't placed any bet tickets yet.</p>
-            <p className="text-[11px] text-slate-500 mt-1">Go to <b>Fixtures & Odds</b>, lock-in predictions and place wagers inside the right Betting Slip.</p>
-          </div>
+          <EmptyState
+            title="No Active Bets Placed"
+            description="Explore Fixtures & Odds, select predictions, and lock-in wagers inside the Betting Slip."
+            icon="ticket"
+          />
         ) : (
           <div className="space-y-2.5">
             {[...tickets].reverse().map(ticket => {

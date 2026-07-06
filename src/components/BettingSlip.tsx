@@ -3,6 +3,7 @@ import { computeAccaOdds } from "../utils/betBuilderUtils";
 import { BetSelection, Fixture, Team, MarketType } from "../types";
 import { formatMoney } from "../utils";
 import { Sparkles, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { EmptyState } from "./ui/EmptyState";
 
 interface RecommendedSelection extends BetSelection {
   advice: string;
@@ -475,13 +476,11 @@ export const BettingSlip: React.FC<BettingSlipProps> = ({
       {/* Selections List */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3 no-scrollbar max-h-none glass-scrollbar">
         {selections.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 p-4">
-            <span className="text-3xl mb-2 opacity-50">🎟️</span>
-            <p className="text-xs font-medium text-slate-400">Your betting slip is currently empty.</p>
-            <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
-              Explore <b>Fixtures & Odds</b> and click on Match Odds (Home/Draw/Away), Correct Scores, or Anytime Goalscorers to craft your predicted ticket.
-            </p>
-          </div>
+          <EmptyState
+            title="Betting Slip is Empty"
+            description="Explore Fixtures & Odds and select predictions to build your custom ticket."
+            icon="bet"
+          />
         ) : (
           selections.map(sel => {
             const stakeKey = `${sel.fixtureId}-${sel.marketType}-${sel.selectionId}`;

@@ -5,6 +5,7 @@ import { Info, X } from "lucide-react";
 import { InfoButton } from "./InfoButton";
 import { getLiveInPlayOdds } from "../utils";
 import { getTeamForm, getHeadToHead, getTeamGoalAvg } from "../utils/formUtils";
+import { GlowOrb } from "./ui/GlowOrb";
 
 interface FixturesOddsProps {
   fixtures: Fixture[];
@@ -92,7 +93,9 @@ export const FixturesOdds: React.FC<FixturesOddsProps> = ({
   };
 
   return (
-    <div className="flex-1 min-height-0 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 no-scrollbar max-h-none">
+    <div className="flex-1 min-height-0 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 no-scrollbar max-h-none relative overflow-hidden">
+      <GlowOrb className="-top-32 -left-32 opacity-10" size="450px" color="var(--accent)" />
+      <GlowOrb className="bottom-12 -right-32 opacity-10" size="450px" color="var(--accent-2)" />
       
       {/* Title Header */}
       <div className="border-b border-white/5 pb-3 flex items-center justify-between">

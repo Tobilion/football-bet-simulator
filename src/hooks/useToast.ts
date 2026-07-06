@@ -17,10 +17,10 @@ const _notify = () => _listeners.forEach((l) => l([..._toasts]));
 
 export const addToast = (toast: Omit<Toast, "id">): void => {
   const id = Math.random().toString(36).slice(2, 9);
-  if (_toasts.length >= 4) _toasts = _toasts.slice(1);
+  if (_toasts.length >= 3) _toasts = _toasts.slice(1);
   _toasts = [..._toasts, { ...toast, id }];
   _notify();
-  const dur = toast.duration ?? 4000;
+  const dur = toast.duration ?? 3500;
   if (dur > 0) setTimeout(() => removeToast(id), dur);
 };
 

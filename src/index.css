@@ -8,10 +8,37 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+:root {
+  --bg: #07090e;            /* page background */
+  --surface: #12151c;       /* cards */
+  --surface-2: #1a1e27;     /* nested/hover */
+  --border: rgba(255,255,255,0.07);
+  --border-hover: rgba(255,255,255,0.14);
+  --text: #f2f4f8; 
+  --muted: #8b93a3;
+  --accent: #10b981;        /* Emerald green */
+  --accent-2: #06b6d4;      /* Cyan */
+  --grad: linear-gradient(135deg, var(--accent), var(--accent-2));
+  --radius: 16px; 
+  --radius-lg: 24px;
+  --shadow: 0 8px 32px rgba(0,0,0,0.35);
+  --ease: cubic-bezier(0.25,0.46,0.45,0.94);
+}
+
+@keyframes progress-bar {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+.animate-toast-progress {
+  animation: progress-bar var(--toast-duration, 3500ms) linear forwards;
+}
+
 /* Base custom styles for Frosted Glass App */
 body {
   font-family: var(--font-sans);
-  background-color: #07090e;
+  background-color: var(--bg);
+  color: var(--text);
   overflow: hidden;
 }
 

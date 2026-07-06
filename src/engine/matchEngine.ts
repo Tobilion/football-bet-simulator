@@ -30,18 +30,51 @@ export interface LineupStrength { overall: number; attack: number; defense: numb
 // dilute a club's strength, so your starting-XI and transfer choices matter.
 export function getStartingXI(team: Team): Player[] {
   const own = team.ownership;
+  const isHealthy = (p: Player) => !p.injured && (p.injuredRounds || 0) === 0 && (p.injuryRecoveryMatches || 0) === 0;
+
   if (own?.starterIds && own.starterIds.length === 11) {
     const xi = own.starterIds
       .map(id => team.players.find(p => p.id === id))
-      .filter((p): p is Player => !!p);
+      .filter((p): p is Player => !!p && isHealthy(p));
+    
     if (xi.length === 11) return xi;
+
+    // Fill missing positions with best healthy bench players
+    const starterIdsSet = new Set(xi.map(p => p.id));
+    const healthyBench = team.players
+      .filter(p => isHealthy(p) && !starterIdsSet.has(p.id))
+      .sort((a, b) => b.rating - a.rating);
+    
+    const filled = [...xi, ...healthyBench].slice(0, 11);
+    
+    // Ensure we have a healthy GK
+    if (!filled.some(p => p.position === "GK")) {
+      const healthyGk = team.players
+        .filter(p => p.position === "GK" && isHealthy(p))
+        .sort((a, b) => b.rating - a.rating)[0];
+      if (healthyGk) {
+        // Swap out the lowest-rated non-GK starter
+        const nonGk = filled.filter(p => p.position !== "GK").sort((a, b) => a.rating - b.rating);
+        if (nonGk.length > 0) {
+          const toReplaceId = nonGk[0].id;
+          return filled.map(p => p.id === toReplaceId ? healthyGk : p);
+        }
+      }
+    }
+    return filled;
   }
-  const gk = team.players.filter(p => p.position === "GK").sort((a, b) => b.rating - a.rating)[0];
-  const rest = team.players
-    .filter(p => p.id !== gk?.id)
+
+  // Default: Get top healthy goalkeeper + top healthy outfield players
+  const healthyGk = team.players
+    .filter(p => p.position === "GK" && isHealthy(p))
+    .sort((a, b) => b.rating - a.rating)[0];
+
+  const healthyOutfield = team.players
+    .filter(p => p.id !== healthyGk?.id && isHealthy(p))
     .sort((a, b) => b.rating - a.rating)
-    .slice(0, gk ? 10 : 11);
-  return gk ? [gk, ...rest] : rest;
+    .slice(0, healthyGk ? 10 : 11);
+
+  return healthyGk ? [healthyGk, ...healthyOutfield] : healthyOutfield;
 }
 
 // Position-weighted attack / defense / keeper strength from the starting XI, adjusted for

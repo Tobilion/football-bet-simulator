@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
   Gamepad2, Coins, ArrowLeft, Play, ShieldAlert, History, Maximize2, Minimize2,
 } from "lucide-react";
+import { GlowOrb } from "./ui/GlowOrb";
 
 import { RedOrBlackGame } from "./casino/RedOrBlackGame";
 import { SpinTheBottleGame } from "./casino/SpinTheBottleGame";
@@ -110,7 +111,9 @@ export const CasinoSuite: React.FC<CasinoSuiteProps> = ({ balance, onUpdateBalan
   };
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto bg-[#05070a] text-slate-100 flex flex-col custom-scrollbar" id="cu-bet-elite-casino-suite">
+    <div className="flex-1 min-h-0 overflow-y-auto bg-[#05070a] text-slate-100 flex flex-col custom-scrollbar relative overflow-hidden" id="cu-bet-elite-casino-suite">
+      <GlowOrb className="-top-32 -left-32 opacity-10" size="450px" color="var(--accent)" />
+      <GlowOrb className="bottom-12 -right-32 opacity-10" size="450px" color="var(--accent-2)" />
       {/* Header — lobby only */}
       {!activeGame && (
         <div className="relative shrink-0 border-b border-white/5 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#101725] via-[#05070a] to-[#05070a] px-4 md:px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
