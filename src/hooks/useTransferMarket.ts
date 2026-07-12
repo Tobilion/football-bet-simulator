@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { TransferListing, Profile } from "../types";
-import { generateTransferListings } from "../engine/transferEngine";
+import { generateTransferListings, refreshTransferListings } from "../engine/transferEngine";
 import { addToast } from "./useToast";
 
 interface UseTransferMarketDeps {
@@ -131,6 +131,35 @@ export function useTransferMarket(deps: UseTransferMarketDeps) {
     setTransferListings(newListings);
   };
 
+  const REFRESH_FEE = 25_000;
+
+  /** "Refresh list" action: small fee, keeps listings the user has bid on. */
+  const handleRefreshListings = (
+    teamsList: import("../types").Team[],
+    roundIndex: number,
+  ) => {
+    if (!userProfile) return;
+    if (userProfile.balance < REFRESH_FEE) {
+      addToast({ type: "loss", title: "❌ Can't Refresh", message: `Refreshing the market costs $${REFRESH_FEE.toLocaleString()}.`, duration: 4000 });
+      return;
+    }
+    const protectedIds = new Set(userBids.map((b) => b.listingId));
+    const refreshed = refreshTransferListings(teamsList, roundIndex, transferListings, protectedIds);
+    setTransferListings(refreshed);
+    const nextBalance = Math.round((userProfile.balance - REFRESH_FEE) * 100) / 100;
+    const nextProfile: Profile = {
+      ...userProfile,
+      balance: nextBalance,
+      bankrollHistory: [
+        ...(userProfile.bankrollHistory || []),
+        { timestamp: Date.now(), balance: nextBalance, detail: `Refreshed transfer market: -$${REFRESH_FEE.toLocaleString()}` },
+      ],
+    };
+    setUserProfile(nextProfile);
+    persist(nextProfile);
+    addToast({ type: "info", title: "🔄 Market Refreshed", message: "A fresh set of players is available.", duration: 3500 });
+  };
+
   const showTransferToast = (msg: string) => {
     if (!msg) return;
     setTransferToast(msg);
@@ -146,6 +175,7 @@ export function useTransferMarket(deps: UseTransferMarketDeps) {
     handlePlaceUserBid,
     handleWithdrawBid,
     handleGenerateListings,
+    handleRefreshListings,
     showTransferToast,
   };
 }

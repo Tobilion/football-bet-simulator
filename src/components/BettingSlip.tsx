@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { computeAccaOdds } from "../utils/betBuilderUtils";
+import { dedupeForAccumulator } from "../utils/betSlipUtils";
 import { BetSelection, Fixture, Team, MarketType } from "../types";
 import { formatMoney } from "../utils";
 import { Sparkles, Check, ChevronDown, ChevronUp } from "lucide-react";
@@ -108,6 +109,7 @@ export const BettingSlip: React.FC<BettingSlipProps> = ({
   const [singleStakes, setSingleStakes] = useState<{ [key: string]: string }>({});
   const [accaStake, setAccaStake] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [distributeAmount, setDistributeAmount] = useState<string>("");
 
   // States for Smart Advisor
   const [showAdvisor, setShowAdvisor] = useState(false);
@@ -141,6 +143,40 @@ export const BettingSlip: React.FC<BettingSlipProps> = ({
     setSingleStakes(nextStakes);
     setErrorMessage(null);
   }, [selections]);
+
+  // Accumulators can never contain two mutually-exclusive picks from the same
+  // match. In acca mode (whether the user switched modes or added a conflicting
+  // pick) drop the extras and tell the user. Singles are unaffected, so Home +
+  // Away can still be placed as two separate singles.
+  useEffect(() => {
+    if (betMode !== "ACCUMULATOR") return;
+    const { dropped } = dedupeForAccumulator(selections);
+    if (dropped.length > 0) {
+      dropped.forEach((d) => onRemoveSelection(d.fixtureId, d.marketType, d.selectionId));
+      setErrorMessage(
+        `Removed ${dropped.length} conflicting pick${dropped.length > 1 ? "s" : ""}: an accumulator can't combine two outcomes from the same market of one match. Use SINGLES for that.`,
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [betMode, selections]);
+
+  // #3 - distribute a single amount across the singles in the slip.
+  const applyStakeDistribution = (mode: "split" | "same") => {
+    const amount = parseFloat(distributeAmount) || 0;
+    if (amount <= 0 || selections.length === 0) {
+      setErrorMessage("Enter an amount to distribute across your singles.");
+      return;
+    }
+    const per = mode === "split"
+      ? Math.round((amount / selections.length) * 100) / 100
+      : amount;
+    const next: { [key: string]: string } = {};
+    selections.forEach((sel) => {
+      next[`${sel.fixtureId}-${sel.marketType}-${sel.selectionId}`] = String(per);
+    });
+    setSingleStakes(next);
+    setErrorMessage(null);
+  };
 
   // Map fixture ID to team names
   const getFixtureMatchup = (fixId: string) => {
@@ -551,6 +587,47 @@ export const BettingSlip: React.FC<BettingSlipProps> = ({
 
       {/* Slip Footer Actions */}
       <div className="bg-white/5 p-3.5 border-t border-white/10 space-y-2.5 backdrop-blur-md">
+        {/* #3 - quick stake distribution for singles */}
+        {betMode === "SINGLE" && selections.length > 1 && (
+          <div className="bg-black/25 border border-white/5 rounded-xl p-2.5 space-y-2">
+            <span className="text-[9px] text-slate-400 font-mono uppercase tracking-wider font-bold block">
+              Quick Stake - {selections.length} singles
+            </span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1 flex-1">
+                <span className="text-[10px] text-slate-500 leading-none">$</span>
+                <input
+                  type="text"
+                  placeholder="Amount"
+                  value={distributeAmount}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "" || /^\d*\.?\d*$/.test(v)) setDistributeAmount(v);
+                  }}
+                  className="w-full bg-transparent border-none text-xs text-emerald-400 focus:outline-none font-mono font-bold leading-none"
+                />
+              </div>
+              <button
+                onClick={() => applyStakeDistribution("split")}
+                className="text-[9px] font-bold uppercase bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 px-2 py-1.5 rounded-lg cursor-pointer transition-all"
+                title="Divide the amount equally across all singles"
+              >
+                Split total
+              </button>
+              <button
+                onClick={() => applyStakeDistribution("same")}
+                className="text-[9px] font-bold uppercase bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 px-2 py-1.5 rounded-lg cursor-pointer transition-all"
+                title="Apply the amount to every single"
+              >
+                Same each
+              </button>
+            </div>
+            <p className="text-[8.5px] text-slate-500 leading-tight">
+              Split divides the amount across all singles; Same applies it to each. You can still edit any stake individually below.
+            </p>
+          </div>
+        )}
+
         {betMode === "ACCUMULATOR" && selections.length >= 2 && (
           <div className="space-y-2 bg-black/25 border border-white/5 rounded-xl p-3">
             <div className="flex items-center justify-between">

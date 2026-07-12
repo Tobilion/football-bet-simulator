@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { Team, Player, Formation, Mentality, PressingStyle, ClubOwnership } from "../types";
 import { formatMoney } from "../utils";
+import { cleanPlayerName, isReservePlayer } from "../utils/playerUtils";
 
 interface ClubManagerProps {
   ownedTeamId: string;
@@ -147,7 +148,7 @@ export const ClubManager: React.FC<ClubManagerProps> = ({
               key={player.id}
               className="absolute flex flex-col items-center gap-0.5 transform -translate-x-1/2 -translate-y-1/2 group cursor-pointer z-10"
               style={{ left: `${xPct}%`, top: `${yPct}%` }}
-              title={`${player.name} | ${player.position} | ${player.rating}`}
+              title={`${cleanPlayerName(player.name)} | ${player.position} | ${player.rating}`}
             >
               <div
                 className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border-2 border-white/60 shadow-lg flex items-center justify-center text-[7px] font-black text-white group-hover:scale-125 transition-transform"
@@ -380,7 +381,7 @@ export const ClubManager: React.FC<ClubManagerProps> = ({
                     style={{ backgroundColor: positionColor(p.position) }}>
                     {idx + 1}
                   </div>
-                  <span className="text-xs font-bold text-white flex-1 truncate">{p.name}</span>
+                  <span className="text-xs font-bold text-white flex-1 truncate">{cleanPlayerName(p.name)}</span>
                   <span className="text-[9px] font-mono text-slate-400 px-1.5 py-0.5 bg-white/5 rounded">{p.position}</span>
                   <span className="text-xs font-black text-emerald-400 w-8 text-right">{p.rating}</span>
                   {p.injured && <span className="text-[8px] text-red-400 font-bold">INJ</span>}
@@ -411,7 +412,8 @@ export const ClubManager: React.FC<ClubManagerProps> = ({
                     }`}
                   >
                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-slate-900 bg-white/20 shrink-0" />
-                    <span className="text-xs font-bold text-slate-300 flex-1 truncate">{p.name}</span>
+                    <span className="text-xs font-bold text-slate-300 flex-1 truncate">{cleanPlayerName(p.name)}</span>
+                    {isReservePlayer(p) && <span className="text-[8px] font-bold text-amber-400 px-1 py-0.5 bg-amber-500/10 rounded border border-amber-500/20">RES</span>}
                     <span className="text-[9px] font-mono text-slate-500 px-1.5 py-0.5 bg-white/5 rounded">{p.position}</span>
                     <span className="text-xs font-black text-slate-400 w-8 text-right">{p.rating}</span>
                     {!healthy && (

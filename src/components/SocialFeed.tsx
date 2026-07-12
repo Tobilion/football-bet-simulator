@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { MessageSquare, Heart, Share2, Award, ShieldAlert, Sparkles, Send, CheckCircle2, RefreshCw } from "lucide-react";
-import { Fixture, Team } from "../types";
+import { Fixture, Team, MatchEvent } from "../types";
 import { motion, AnimatePresence } from "motion/react";
 
 interface SocialFeedProps {
@@ -109,84 +109,103 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ fixtures, teams, roundLa
     localStorage.setItem("fs_social_posts", JSON.stringify(updatedList));
   };
 
-  // Build live event posts dynamically based on recent simulation events!
-  useEffect(() => {
-    // Look at active round fixtures and extract any in-play events to render fan reactions
-    const activeFixtures = fixtures.filter((f) => f.status === "LIVE" || f.status === "FT");
-    if (activeFixtures.length === 0) return;
+  // Turn a single match event into a fan-zone post. Covers the full range of
+  // in-play moments (goals, cards, saves, near-misses, hard fouls, half/full
+  // time) so the feed reacts frequently and contextually to what's happening.
+  const buildPostForEvent = (f: Fixture, ev: MatchEvent): Post | null => {
+    const homeName = getTeamShort(f.homeTeamId);
+    const awayName = getTeamShort(f.awayTeamId);
+    const isHome = ev.teamId === f.homeTeamId;
+    const score = `${homeName} ${Math.floor(f.homeScore)} - ${Math.floor(f.awayScore)} ${awayName}`;
+    const base = { id: `live-event-${f.id}-${ev.minute}-${ev.type}-${ev.playerName ?? ""}`, teamId: ev.teamId };
 
-    // Pick the most recent event across all live matches
-    let latestEvent: any = null;
-    let eventMatch: Fixture | null = null;
-
-    activeFixtures.forEach((f) => {
-      if (f.events && f.events.length > 0) {
-        const ev = f.events[f.events.length - 1];
-        if (!latestEvent || ev.minute > latestEvent.minute) {
-          latestEvent = ev;
-          eventMatch = f;
-        }
-      }
-    });
-
-    if (!latestEvent || !eventMatch) return;
-
-    // See if we already generated a post for this match event
-    const eventPostId = `live-event-${eventMatch.id}-${latestEvent.minute}-${latestEvent.type}`;
-    const alreadyExists = posts.some((p) => p.id === eventPostId);
-    if (alreadyExists) return;
-
-    // Generate supporter reaction
-    const homeName = getTeamShort(eventMatch.homeTeamId);
-    const awayName = getTeamShort(eventMatch.awayTeamId);
-    let authorName = "SuperFan";
-    let authorHandle = "superfan";
-    let avatarSeed = "⚽";
-    let content = "";
-
-    const rand = Math.random();
-    if (latestEvent.type === "GOAL") {
-      const isHome = latestEvent.teamId === eventMatch.homeTeamId;
-      authorName = isHome ? `${homeName} Ultra` : `${awayName} Faithful`;
-      authorHandle = isHome ? `${homeName}_Army` : `${awayName}HQ`;
-      avatarSeed = isHome ? "⚡" : "🔥";
-      content = `🚨 GOOOOOAAAL!!! ${latestEvent.playerName} strips the keeper and slots it home in the ${latestEvent.minute}th minute! This changes everything! Current score: ${homeName} ${Math.floor(eventMatch.homeScore)} - ${Math.floor(eventMatch.awayScore)} ${awayName}. Live odds are going crazy! 📈`;
-    } else if (latestEvent.type === "RED_CARD") {
-      authorName = "Ref Analyst";
-      authorHandle = "RefRundown";
-      avatarSeed = "🟥";
-      content = `⚠️ RED CARD! Disaster strikes for ${getTeamName(latestEvent.teamId)}! ${latestEvent.playerName} gets sent off! Play is suspended, markets are pricing up. Live match dynamic odds shifting heavily! 🍿`;
-    } else if (latestEvent.type === "YELLOW_CARD") {
-      authorName = "Card Watcher";
-      authorHandle = "BookingGossip";
-      avatarSeed = "🟨";
-      content = `Booking! Yellow card issued to ${latestEvent.playerName}. Match aggression is spiking, watch out for the Over/Under bookings line on your slip! 🎴`;
-    } else if (latestEvent.type === "SAVE") {
-      authorName = "Goalie Union";
-      authorHandle = "SaveStats";
-      avatarSeed = "🧤";
-      content = `STUNNING SAVE! Clean glove work! The referee blocks & Goalkeepers combined count just ticked up! What a match between ${homeName} and ${awayName}! 🙌`;
-    } else {
-      return; // Skip other general events for noise reduction
+    let authorName = "SuperFan", authorHandle = "superfan", avatarSeed = "⚽", content = "";
+    switch (ev.type) {
+      case "GOAL":
+        authorName = isHome ? `${homeName} Ultra` : `${awayName} Faithful`;
+        authorHandle = isHome ? `${homeName}_Army` : `${awayName}HQ`;
+        avatarSeed = isHome ? "⚡" : "🔥";
+        content = `🚨 GOOOOAAAL!!! ${ev.playerName} finds the net in the ${ev.minute}'! ${score}. Live odds are swinging! 📈`;
+        break;
+      case "RED_CARD":
+        authorName = "Ref Analyst"; authorHandle = "RefRundown"; avatarSeed = "🟥";
+        content = `⚠️ RED CARD! ${ev.playerName} (${getTeamName(ev.teamId ?? "")}) walks in the ${ev.minute}'. Down to 10 — markets repricing fast! 🍿`;
+        break;
+      case "YELLOW_CARD":
+        authorName = "Card Watcher"; authorHandle = "BookingGossip"; avatarSeed = "🟨";
+        content = `Booking! Yellow for ${ev.playerName} (${ev.minute}'). Cards line is heating up — check your Over/Under bookings! 🎴`;
+        break;
+      case "SAVE":
+        authorName = "Goalie Union"; authorHandle = "SaveStats"; avatarSeed = "🧤";
+        content = `WHAT A SAVE in the ${ev.minute}'! ${ev.playerName ?? "The keeper"} keeps it level. ${score} — saves line ticking up! 🙌`;
+        break;
+      case "MISS":
+        authorName = "Chance Tracker"; authorHandle = "xGwatch"; avatarSeed = "😱";
+        content = `SO CLOSE! ${ev.playerName ?? "A striker"} agonisingly misses in the ${ev.minute}'! Inches from changing the ${score} scoreline! 🎯`;
+        break;
+      case "FOUL":
+        authorName = "Touchline Cam"; authorHandle = "PitchSide"; avatarSeed = "😤";
+        content = `Crunching foul in the ${ev.minute}'! Tempers rising between ${homeName} and ${awayName}. 🔥`;
+        break;
+      case "HALF_TIME":
+        authorName = "Match Desk"; authorHandle = "HTReport"; avatarSeed = "⏸️";
+        content = `⏸️ HALF TIME: ${score}. Cash out or double down? Live prices are settling for the break.`;
+        break;
+      case "FULL_TIME":
+        authorName = "Full Time Wire"; authorHandle = "FTsiren"; avatarSeed = "🏁";
+        content = `🏁 FULL TIME: ${score}. All tickets on this one settle now — good luck! 🎟️`;
+        break;
+      default:
+        return null; // ASSIST/KICKOFF/COMMENTARY skipped to reduce noise
     }
-
-    const newEventPost: Post = {
-      id: eventPostId,
-      authorName,
-      authorHandle,
-      avatarSeed,
-      teamId: latestEvent.teamId,
-      content,
+    return {
+      ...base,
+      authorName, authorHandle, avatarSeed, content,
       timestamp: "Just now",
       likes: Math.floor(Math.random() * 25) + 3,
       comments: Math.floor(Math.random() * 5) + 1,
       shares: Math.floor(Math.random() * 4),
     };
+  };
 
-    // Stagger insert
-    const updated = [newEventPost, ...posts.filter((p) => !p.id.startsWith("live-event") || Math.random() > 0.4)].slice(0, 30);
-    savePosts(updated);
+  // Build live event posts dynamically — process EVERY new event across active
+  // matches (not just the single latest) so the feed updates within seconds of
+  // each goal, card, corner, near-miss or whistle.
+  useEffect(() => {
+    const activeFixtures = fixtures.filter((f) => f.status === "LIVE" || f.status === "FT");
+    if (activeFixtures.length === 0) return;
+
+    setPosts((current) => {
+      const existingIds = new Set(current.map((p) => p.id));
+      const fresh: Post[] = [];
+      activeFixtures.forEach((f) => {
+        // Look at the most recent handful of events per fixture for reactions.
+        (f.events ?? []).slice(-5).forEach((ev) => {
+          const post = buildPostForEvent(f, ev);
+          if (post && !existingIds.has(post.id) && !fresh.some((p) => p.id === post.id)) {
+            fresh.push(post);
+          }
+        });
+      });
+      if (fresh.length === 0) return current;
+      const updated = [...fresh, ...current].slice(0, 40);
+      localStorage.setItem("fs_social_posts", JSON.stringify(updated));
+      return updated;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fixtures]);
+
+  // Fully clear the feed when the match/round changes (new game session) so
+  // stale banter from a previous match never lingers.
+  const prevRoundRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevRoundRef.current !== null && prevRoundRef.current !== roundLabel) {
+      localStorage.removeItem("fs_social_posts");
+      setPosts(staticFlavorPosts);
+    }
+    prevRoundRef.current = roundLabel;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roundLabel]);
 
   const handleCreatePost = (e: React.FormEvent) => {
     e.preventDefault();

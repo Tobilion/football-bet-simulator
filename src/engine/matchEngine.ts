@@ -110,196 +110,148 @@ export function lineupStrength(team: Team): LineupStrength {
   return { overall: overallAdj, attack, defense, gk };
 }
 
-// 1. Odds Generator for Fixture
-export function generateMatchOdds(homeTeam: Team, awayTeam: Team): MatchOdds {
-  const homeAvg = lineupStrength(homeTeam).overall;
-  const awayAvg = lineupStrength(awayTeam).overall;
+// ── Expected match statistics (the shared model) ──────────────────────────
+// One coherent, strength-driven expectation for how many goals/shots/corners/
+// saves/cards each side should register. The SIMULATION uses these to generate
+// realistic per-match counts, and the ODDS engine uses the very same numbers as
+// its prior — so what the market prices and what actually happens on the pitch
+// come from a single source of truth.
+export interface ExpectedStats {
+  goals: number; shots: number; corners: number; saves: number; cards: number;
+}
 
-  // Home advantage addition. Subtract a baseline so rating gaps translate into a
-  // realistically wide power ratio (a great side is a heavy favorite, not a coin flip).
-  const homePower = Math.max(1, (homeAvg + 3) - 30);
-  const awayPower = Math.max(1, awayAvg - 30);
-  
-  const totalPower = homePower + awayPower;
-  
-  // Raw Win/Draw/Loss probabilities
-  const homeWinProbRaw = homePower / totalPower; // e.g. 82 / 160 = 0.51
-  // Draw probability is higher for closely matched teams, lower for giants vs underdogs
-  const difference = Math.abs(homePower - awayPower);
-  const drawProbRaw = Math.max(0.12, 0.28 - (difference / 100));
-  const awayWinProbRaw = 1.0 - homeWinProbRaw - drawProbRaw;
-  
-  // Apply bookmaker vig/margin (e.g., 8%) for authentic odds
-  const margin = 1.08;
-  const homeWinOdds = Math.max(1.05, Math.round((1.0 / (homeWinProbRaw * margin)) * 100) / 100);
-  const drawOdds = Math.max(1.50, Math.round((1.0 / (drawProbRaw * margin)) * 100) / 100);
-  const awayWinOdds = Math.max(1.05, Math.round((1.0 / (awayWinProbRaw * margin)) * 100) / 100);
+// Per-team, per-match league baselines (also the shrinkage prior for odds).
+export const STAT_BASELINE = { goals: 1.35, shots: 12, corners: 5.2, saves: 3.4, cards: 1.9 };
 
-  // Generate Exact Scores
-  const commonScores = [
-    { score: "1-0", freq: 0.12 }, { score: "2-0", freq: 0.08 }, { score: "2-1", freq: 0.10 },
-    { score: "3-0", freq: 0.05 }, { score: "3-1", freq: 0.06 }, { score: "3-2", freq: 0.03 },
-    { score: "0-0", freq: 0.07 }, { score: "1-1", freq: 0.11 }, { score: "2-2", freq: 0.04 },
-    { score: "0-1", freq: 0.09 }, { score: "0-2", freq: 0.06 }, { score: "1-2", freq: 0.08 },
-    { score: "0-3", freq: 0.03 }, { score: "1-3", freq: 0.04 }, { score: "2-3", freq: 0.02 }
-  ];
+function clampNum(v: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, v));
+}
 
-  const exactScores = commonScores.map(cs => {
-    const parts = cs.score.split("-");
-    const hScore = parseInt(parts[0]);
-    const aScore = parseInt(parts[1]);
-    
-    // Scale standard frequency based on team ratios
-    let probabilityModifier = 1.0;
-    if (hScore > aScore) {
-      probabilityModifier *= (homePower / awayPower);
-    } else if (aScore > hScore) {
-      probabilityModifier *= (awayPower / homePower);
-    } else {
-      // Draw scores
-      probabilityModifier *= (1.0 - Math.abs(homePower - awayPower) / 50.0);
-    }
-    
-    const adjustedFreq = Math.max(0.005, cs.freq * probabilityModifier);
-    const odds = Math.max(4.50, Math.round((1.0 / (adjustedFreq * margin)) * 100) / 100);
-    
-    return { score: cs.score, odds };
-  });
+/** Poisson sample (Knuth) — used to spread an expected total across match ticks. */
+function poissonSample(lambda: number): number {
+  if (lambda <= 0) return 0;
+  const L = Math.exp(-lambda);
+  let k = 0, p = 1;
+  do { k++; p *= Math.random(); } while (p > L);
+  return k - 1;
+}
 
-  // Goalscorer Odds (Select players from both teams)
-  const goalscorers: MatchOdds["goalscorers"] = [];
-  
-  // Extract all outfield players
-  const processGoalscorersForTeam = (team: Team, isHome: boolean) => {
-    const multiplier = isHome ? (homePower / awayPower) : (awayPower / homePower);
-    
-    team.players.forEach(p => {
-      if (p.position === "GK") return; // GKs rarely score!
-      
-      let baseOdds = 15.0;
-      if (p.position === "ATT") {
-        baseOdds = 2.5; // Strikers score often
-      } else if (p.position === "MID") {
-        baseOdds = 5.0; // Midfielders
-      } else if (p.position === "DEF") {
-        baseOdds = 10.0; // Defenders
-      }
-      
-      // Fine tune by player rating
-      const ratingFactor = (100 - p.rating) / 10; // Better rating -> lower factor -> lower odds
-      let finalOdds = baseOdds * ratingFactor * (1.0 / multiplier);
-      
-      // Ensure lower bounds
-      finalOdds = Math.max(1.50, Math.round(finalOdds * 100) / 100);
-      
-      goalscorers.push({
-        playerId: p.id,
-        name: p.name,
-        position: p.position,
-        odds: finalOdds
-      });
-    });
-  };
-
-  processGoalscorersForTeam(homeTeam, true);
-  processGoalscorersForTeam(awayTeam, false);
-
-  // Sort goalscorers so lowest odds (most likely) come first
-  goalscorers.sort((a, b) => a.odds - b.odds);
-
-  // Expanded markets
-  const homeOrDrawRaw = homeWinProbRaw + drawProbRaw;
-  const homeOrAwayRaw = homeWinProbRaw + awayWinProbRaw;
-  const drawOrAwayRaw = drawProbRaw + awayWinProbRaw;
-
-  const bttsYesRaw = Math.min(0.8, Math.max(0.3, 0.5 + (0.01 * (homePower + awayPower - 120))));
-  const bttsNoRaw = 1.0 - bttsYesRaw;
-
-  // Derive Over/Under (using dummy approximations based on total Power)
-  const averageTotalGoals = (homePower + awayPower) / 50; // just an arbitrary base measure
-  
-  // Create realistic looking lines
-  const overUnderRaw = (line: number) => {
-    const diff = averageTotalGoals - line;
-    // Base 0.5 prob logic:
-    const overProb = Math.max(0.05, Math.min(0.95, 0.5 + diff * 0.2));
-    const underProb = 1.0 - overProb;
-    return {
-      over: Math.max(1.01, Math.round((1 / (overProb * margin)) * 100) / 100),
-      under: Math.max(1.01, Math.round((1 / (underProb * margin)) * 100) / 100)
-    }
-  }
-
-  // Double chance
-  const doubleChance = {
-    homeOrDraw: Math.max(1.01, Math.round((1 / (homeOrDrawRaw * margin)) * 100) / 100),
-    homeOrAway: Math.max(1.01, Math.round((1 / (homeOrAwayRaw * margin)) * 100) / 100),
-    drawOrAway: Math.max(1.01, Math.round((1 / (drawOrAwayRaw * margin)) * 100) / 100),
-  };
-
-  const bothTeamsToScore = {
-    yes: Math.max(1.05, Math.round((1 / (bttsYesRaw * margin)) * 100) / 100),
-    no: Math.max(1.05, Math.round((1 / (bttsNoRaw * margin)) * 100) / 100)
-  };
-
-  const overUnder = {
-    over0_5: overUnderRaw(0.5).over, under0_5: overUnderRaw(0.5).under,
-    over1_5: overUnderRaw(1.5).over, under1_5: overUnderRaw(1.5).under,
-    over2_5: overUnderRaw(2.5).over, under2_5: overUnderRaw(2.5).under,
-    over3_5: overUnderRaw(3.5).over, under3_5: overUnderRaw(3.5).under,
-    over4_5: overUnderRaw(4.5).over, under4_5: overUnderRaw(4.5).under,
-  };
-
-  const cornersBaseLines = [7.5, 8.5, 9.5, 10.5, 11.5];
-  const overUnderCorners = cornersBaseLines.map((line) => {
-    const diffLine = line - 9.5;
-    const overProb = Math.max(0.05, Math.min(0.95, 0.6 - diffLine * 0.15));
-    const underProb = 1.0 - overProb;
-    return {
-      line,
-      over: Math.max(1.01, Math.round((1 / (overProb * margin)) * 100) / 100),
-      under: Math.max(1.01, Math.round((1 / (underProb * margin)) * 100) / 100)
-    };
-  });
-
-  const cardsBaseLines = [2.5, 3.5, 4.5, 5.5];
-  const overUnderCards = cardsBaseLines.map((line) => {
-    const diffLine = line - 3.5;
-    const overProb = Math.max(0.05, Math.min(0.95, 0.45 - diffLine * 0.15));
-    const underProb = 1.0 - overProb;
-    return {
-      line,
-      over: Math.max(1.01, Math.round((1 / (overProb * margin)) * 100) / 100),
-      under: Math.max(1.01, Math.round((1 / (underProb * margin)) * 100) / 100)
-    };
-  });
-
-  const savesBaseLines = [4.5, 5.5, 6.5, 7.5, 8.5];
-  const overUnderSaves = savesBaseLines.map((line) => {
-    const diffLine = line - 6.5;
-    const overProb = Math.max(0.05, Math.min(0.95, 0.5 - diffLine * 0.12));
-    const underProb = 1.0 - overProb;
-    return {
-      line,
-      over: Math.max(1.01, Math.round((1 / (overProb * margin)) * 100) / 100),
-      under: Math.max(1.01, Math.round((1 / (underProb * margin)) * 100) / 100)
-    };
-  });
-
+/** Expected stats for one side given its lineup and the opponent's. */
+function expectedForSide(
+  mine: LineupStrength,
+  opp: LineupStrength,
+  ownOverall: number,
+  isHome: boolean,
+  rivalry: boolean,
+): ExpectedStats {
+  const homeMul = isHome ? 1.08 : 0.94;
+  // Attacking dominance: our attack vs their defense.
+  const dom = Math.pow(1.03, mine.attack - opp.defense);
+  // Defensive exposure: how much their attack threatens our keeper/defense
+  // (this drives how many saves OUR keeper makes).
+  const oppThreat = Math.pow(1.03, opp.attack - (mine.defense * 0.5 + mine.gk * 0.5));
   return {
-    homeWin: homeWinOdds,
-    draw: drawOdds,
-    awayWin: awayWinOdds,
-    exactScores,
-    goalscorers: goalscorers.slice(0, 16), // Top 16 likely goalscorers for compact odds displays
-    doubleChance,
-    bothTeamsToScore,
-    overUnder,
-    overUnderCorners,
-    overUnderCards,
-    overUnderSaves
+    goals: clampNum(STAT_BASELINE.goals * Math.pow(dom, 0.72) * homeMul, 0.2, 4.5),
+    shots: clampNum(STAT_BASELINE.shots * Math.pow(dom, 0.75) * homeMul, 4, 26),
+    corners: clampNum(STAT_BASELINE.corners * Math.pow(dom, 0.6) * homeMul, 1.5, 13),
+    // Our keeper makes more saves when facing a stronger attack.
+    saves: clampNum(STAT_BASELINE.saves * Math.pow(oppThreat, 0.7), 1, 10),
+    // Weaker / rougher sides collect more cards; derbies raise the temperature.
+    cards: clampNum(STAT_BASELINE.cards * (1 + (72 - ownOverall) / 70) * (rivalry ? 1.25 : 1), 0.6, 5),
   };
 }
+
+export function strengthExpectedStats(
+  homeTeam: Team,
+  awayTeam: Team,
+): { home: ExpectedStats; away: ExpectedStats } {
+  const hLU = lineupStrength(homeTeam);
+  const aLU = lineupStrength(awayTeam);
+  const rivalry =
+    (homeTeam.rivalClubIds ?? []).includes(awayTeam.id) ||
+    (awayTeam.rivalClubIds ?? []).includes(homeTeam.id);
+  return {
+    home: expectedForSide(hLU, aLU, hLU.overall, true, rivalry),
+    away: expectedForSide(aLU, hLU, aLU.overall, false, rivalry),
+  };
+}
+
+// Spreads the expected corner/save/card/shot volumes across the match tick by
+// tick (independent of the goal engine, which stays tuned for scorelines). This
+// is what makes recorded corners/cards/saves realistic and consistent with the
+// odds. Normal play is 15 ticks; extra-time ticks contribute at a lower weight.
+function applyVolumeStats(
+  fixture: Fixture,
+  homeTeam: Team,
+  awayTeam: Team,
+  currentTick: number,
+): void {
+  if (currentTick < 1 || currentTick > 20) return;
+  const wt = currentTick <= 15 ? 1 : 0.5;
+  const exp = strengthExpectedStats(homeTeam, awayTeam);
+  const gkOf = (team: Team) =>
+    team.players.find((p) => p.position === "GK") ?? team.players[0];
+
+  const sides: { side: "home" | "away"; team: Team; opp: Team; e: ExpectedStats }[] = [
+    { side: "home", team: homeTeam, opp: awayTeam, e: exp.home },
+    { side: "away", team: awayTeam, opp: homeTeam, e: exp.away },
+  ];
+
+  for (const { side, team, opp, e } of sides) {
+    const oppSide = side === "home" ? "away" : "home";
+    // Corners for this side.
+    const corners = poissonSample((e.corners / 15) * wt);
+    if (corners > 0) {
+      fixture.stats[side].corners += corners;
+      fixture.events.push({
+        minute: fixture.currentMinute,
+        type: "COMMENTARY",
+        teamId: team.id,
+        commentary: `🚩 Corner for ${team.name}. Delivery swings into a crowded box.`,
+      });
+    }
+    // Saves by THIS side's keeper (opponent had a shot on target we stopped).
+    const saves = poissonSample((e.saves / 15) * wt);
+    if (saves > 0) {
+      const gk = gkOf(team);
+      fixture.stats[side].saves += saves;
+      fixture.stats[oppSide].shots += saves;
+      fixture.stats[oppSide].shotsOnTarget += saves;
+      fixture.events.push({
+        minute: fixture.currentMinute,
+        type: "SAVE",
+        teamId: team.id,
+        playerId: gk.id,
+        playerName: gk.name,
+        commentary: `🧤 ${gk.name} makes the stop for ${team.name}.`,
+      });
+    }
+    // Off-target / blocked shots so the shots tally is realistic.
+    const looseShots = poissonSample((Math.max(0, e.shots - e.saves - e.goals) / 15) * wt);
+    if (looseShots > 0) fixture.stats[side].shots += looseShots;
+    // Bookings for this side.
+    const cards = poissonSample((e.cards / 15) * wt);
+    for (let i = 0; i < cards; i++) {
+      const outfield = team.players.filter((p) => p.position !== "GK");
+      const bookee = outfield[Math.floor(Math.random() * Math.max(1, outfield.length))];
+      const isRed = Math.random() < 0.08;
+      if (isRed) fixture.stats[side].redCards += 1;
+      else fixture.stats[side].yellowCards += 1;
+      if (bookee) {
+        fixture.events.push({
+          minute: fixture.currentMinute,
+          type: isRed ? "RED_CARD" : "YELLOW_CARD",
+          teamId: team.id,
+          playerId: bookee.id,
+          playerName: bookee.name,
+          commentary: `${isRed ? "🟥 Red" : "🟨 Yellow"} card shown to ${bookee.name}.`,
+        });
+      }
+    }
+  }
+}
+
+// Odds generation lives in engine/oddsEngine.ts (computeMatchOdds).
 
 // 2. Commentary Databases
 const goalCommentaries = [
@@ -614,19 +566,11 @@ export function simulateMatchTick(
       // Find goalkeeper on field
       const defenderGK = defendingActive.onField.find(p => p.position === "GK") || defendingTeam.players.find(p => p.position === "GK") || defendingTeam.players[0];
       
+      // A shot on target that didn't score. The SAVE stat + keeper credit are
+      // owned by applyVolumeStats (shared model) to avoid double-counting.
       updatedFixture.stats[attackingSide].shots += 1;
       updatedFixture.stats[attackingSide].shotsOnTarget += 1;
-      updatedFixture.stats[defendingSide].saves += 1;
-
-      const commentaryTemplate = saveCommentaries[Math.floor(Math.random() * saveCommentaries.length)];
-      updatedFixture.events.push({
-        minute: matchMinute,
-        type: "SAVE",
-        teamId: defendingTeam.id,
-        playerId: defenderGK.id,
-        playerName: defenderGK.name,
-        commentary: `🧤 Great Save! ${defenderGK.name} ${commentaryTemplate} to stop a shot from the opposite side.`
-      });
+      void defenderGK;
 
     } else if (actionRand < 0.78) {
       // 🎯 SHOT MISSED
@@ -649,8 +593,7 @@ export function simulateMatchTick(
       updatedFixture.stats.home.passes += Math.floor(Math.random() * 25) + 15;
       updatedFixture.stats.away.passes += Math.floor(Math.random() * 25) + 15;
       
-      // Corner award
-      updatedFixture.stats[attackingSide].corners += 1;
+      // (corners are produced by applyVolumeStats from the shared model)
       updatedFixture.events.push({
         minute: matchMinute,
         type: "COMMENTARY",
@@ -665,6 +608,10 @@ export function simulateMatchTick(
     updatedFixture.stats.home.passes += Math.floor(Math.random() * 20) + 10;
     updatedFixture.stats.away.passes += Math.floor(Math.random() * 20) + 10;
   }
+
+  // Generate realistic volume stats (corners/saves/cards/shots) each tick
+  // from the shared expected-stats model, independent of the goal engine.
+  applyVolumeStats(updatedFixture, homeTeam, awayTeam, currentTick);
 
   // --- SHIFT IN-PLAY ODDS EVERY TICK BASED ON SCORELINE ---
   if (currentTick >= 1 && currentTick <= 15) {

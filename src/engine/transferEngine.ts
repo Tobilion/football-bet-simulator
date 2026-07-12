@@ -51,6 +51,64 @@ export function calculatePlayerValue(player: Player, team: Team): number {
 // Generate listings at start of each round
 // ──────────────────────────────────────────────
 
+// Target size of the open transfer window and how it splits across positions.
+const WINDOW_TARGET = 16;
+const POSITION_QUOTA: Record<string, number> = { GK: 2, DEF: 5, MID: 5, ATT: 4 };
+
+/** Builds a position-balanced set of `count`-ish listings from the pool. */
+function pickBalancedListings(
+  pool: { player: Player; team: Team }[],
+  quota: Record<string, number>,
+  roundIndex: number,
+  teams: Team[],
+): TransferListing[] {
+  const byPos: Record<string, { player: Player; team: Team }[]> = { GK: [], DEF: [], MID: [], ATT: [] };
+  pool.forEach((p) => { (byPos[p.player.position] ??= []).push(p); });
+  Object.values(byPos).forEach((arr) => arr.sort(() => Math.random() - 0.5));
+
+  const chosen: { player: Player; team: Team }[] = [];
+  Object.entries(quota).forEach(([pos, n]) => {
+    chosen.push(...(byPos[pos] ?? []).slice(0, n));
+  });
+  // Backfill from any leftover players if a position was short, to hit the target.
+  if (chosen.length < WINDOW_TARGET) {
+    const chosenIds = new Set(chosen.map((c) => c.player.id));
+    const leftover = pool.filter((p) => !chosenIds.has(p.player.id)).sort(() => Math.random() - 0.5);
+    chosen.push(...leftover.slice(0, WINDOW_TARGET - chosen.length));
+  }
+
+  return chosen.map(({ player, team }) => {
+    const value = calculatePlayerValue(player, team);
+    return {
+      id: uid(),
+      playerId: player.id,
+      fromTeamId: team.id,
+      askingPrice: Math.round(value * (0.85 + Math.random() * 0.3)),
+      listedAtRound: roundIndex,
+      expiresAtRound: roundIndex + 2,
+      status: "OPEN" as const,
+      bids: generateAIBids(team, value, teams),
+    };
+  });
+}
+
+/** Listable players: AI teams only (not the user's club), fit, and not already listed. */
+function buildTransferPool(
+  teams: Team[],
+  excludePlayerIds: Set<string>,
+): { player: Player; team: Team }[] {
+  const pool: { player: Player; team: Team }[] = [];
+  for (const team of teams) {
+    if (team.ownership) continue; // skip user-owned club (incl. already-bought players)
+    for (const player of team.players) {
+      if (player.injured) continue;
+      if (excludePlayerIds.has(player.id)) continue;
+      pool.push({ player, team });
+    }
+  }
+  return pool;
+}
+
 export function generateTransferListings(
   teams: Team[],
   roundIndex: number,
@@ -63,49 +121,53 @@ export function generateTransferListings(
       : l,
   );
 
-  const openCount = active.filter((l) => l.status === "OPEN").length;
-  // Keep 3-6 open listings at any time
-  const target = 3 + Math.floor(Math.random() * 4);
-  const needed = Math.max(0, target - openCount);
+  const openListings = active.filter((l) => l.status === "OPEN");
+  const needed = Math.max(0, WINDOW_TARGET - openListings.length);
   if (needed === 0) return active;
 
-  // Pool of listable players (AI teams only, not the owned team)
-  const pool: { player: Player; team: Team }[] = [];
-  for (const team of teams) {
-    if (team.ownership) continue; // skip user-owned club
-    for (const player of team.players) {
-      if (player.injured) continue;
-      pool.push({ player, team });
-    }
-  }
+  // Per-position shortfall relative to the quota, so top-ups stay balanced.
+  const openByPos: Record<string, number> = { GK: 0, DEF: 0, MID: 0, ATT: 0 };
+  const posOfPlayer = (id: string) => {
+    for (const t of teams) { const p = t.players.find((pl) => pl.id === id); if (p) return p.position; }
+    return null;
+  };
+  openListings.forEach((l) => { const pos = posOfPlayer(l.playerId); if (pos) openByPos[pos]++; });
+  const shortfall: Record<string, number> = {};
+  Object.entries(POSITION_QUOTA).forEach(([pos, q]) => { shortfall[pos] = Math.max(0, q - (openByPos[pos] ?? 0)); });
 
+  const listedIds = new Set(openListings.map((l) => l.playerId));
+  const pool = buildTransferPool(teams, listedIds);
   if (pool.length === 0) return active;
 
-  // Pick random players, no duplicates with existing open listings
-  const listedPlayerIds = new Set(
-    active.filter((l) => l.status === "OPEN").map((l) => l.playerId),
-  );
-
-  const shuffled = pool
-    .filter((p) => !listedPlayerIds.has(p.player.id))
-    .sort(() => Math.random() - 0.5)
-    .slice(0, needed);
-
-  const newListings: TransferListing[] = shuffled.map(({ player, team }) => {
-    const value = calculatePlayerValue(player, team);
-    return {
-      id: uid(),
-      playerId: player.id,
-      fromTeamId: team.id,
-      askingPrice: Math.round(value * (0.85 + Math.random() * 0.3)),
-      listedAtRound: roundIndex,
-      expiresAtRound: roundIndex + 2,
-      status: "OPEN",
-      bids: generateAIBids(team, value, teams),
-    };
-  });
-
+  const newListings = pickBalancedListings(pool, shortfall, roundIndex, teams);
   return [...active, ...newListings];
+}
+
+/**
+ * Produces a brand-new window on demand (the "Refresh list" action). Current
+ * open listings the user hasn't bid on are cleared and replaced with a fresh,
+ * position-balanced set. Players the user has already bought (now on the owned
+ * club) are naturally excluded, and any listing with an active user bid is kept.
+ */
+export function refreshTransferListings(
+  teams: Team[],
+  roundIndex: number,
+  existingListings: TransferListing[],
+  protectedListingIds: Set<string> = new Set(),
+): TransferListing[] {
+  const kept = existingListings.map((l) =>
+    l.status === "OPEN" && !protectedListingIds.has(l.id)
+      ? { ...l, status: "EXPIRED" as const }
+      : l,
+  );
+  const stillOpen = kept.filter((l) => l.status === "OPEN");
+  const listedIds = new Set(stillOpen.map((l) => l.playerId));
+  const pool = buildTransferPool(teams, listedIds);
+  if (pool.length === 0) return kept;
+
+  const remainingQuota: Record<string, number> = { ...POSITION_QUOTA };
+  const newListings = pickBalancedListings(pool, remainingQuota, roundIndex, teams);
+  return [...kept, ...newListings];
 }
 
 /** AI clubs make initial bids. Bidders are REAL rival clubs so the player actually moves

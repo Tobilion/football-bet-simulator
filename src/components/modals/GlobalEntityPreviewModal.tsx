@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { TeamCrest } from "../TeamCrest";
 import { Team } from "../../types";
+import { cleanPlayerName } from "../../utils/playerUtils";
 
 interface GlobalEntityPreviewModalProps {
   globalEntity: { type: "team" | "player"; id: string };
@@ -61,7 +62,7 @@ export const GlobalEntityPreviewModal: React.FC<GlobalEntityPreviewModalProps> =
                 CHAMPIONSHIP PLAYER PORTRAIT
               </p>
               <h3 className="text-lg font-black text-slate-100 tracking-tight leading-tight mt-1 truncate max-w-[240px]">
-                {foundPlayer.name}
+                {cleanPlayerName(foundPlayer.name)}
               </h3>
               <div className="flex items-center gap-1.5 mt-1.5 justify-center flex-wrap">
                 <span className="px-2 py-0.5 bg-white/5 border border-white/10 rounded text-[9px] font-mono text-[#10b981] font-bold">
@@ -254,7 +255,7 @@ export const GlobalEntityPreviewModal: React.FC<GlobalEntityPreviewModalProps> =
                       className="flex justify-between items-center py-1.5 px-2 hover:bg-white/5 border border-transparent hover:border-white/5 rounded-lg transition-all cursor-pointer"
                     >
                       <span className="font-semibold text-slate-300 truncate block max-w-[150px]">
-                        {p.name}
+                        {cleanPlayerName(p.name)}
                       </span>
                       <div className="flex gap-2 items-center">
                         <span className="text-[8px] bg-slate-800 text-slate-400 font-bold px-1 rounded uppercase">

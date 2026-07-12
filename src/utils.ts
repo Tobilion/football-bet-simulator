@@ -11,6 +11,12 @@ export function formatMoney(amount: number, decimals: number = 2): string {
   });
 }
 
+// Longest price a live market is ever quoted at. Unlikely-but-still-possible
+// outcomes are priced up to this ceiling rather than being suspended — a market
+// is only suspended (null) when it is DECIDED or mathematically impossible, never
+// merely because the price got long or time is running down.
+const MAX_LIVE_ODDS = 99.0;
+
 /**
  * Calculates dynamically shifted live in-play odds based on elapsed minutes, current score, and match state.
  * Returns a number for active odds, or null if the selection/market is closed, suspended, or already covered.
@@ -184,42 +190,37 @@ export function getLiveInPlayOdds(
 
       const goalsNeeded = line - currentTotalGoals;
 
-      // "Bets already covered should be marked unavailable"
+      // Only suspend when the line is DECIDED: the total has passed the line, so
+      // Over is won and Under is lost (settlement handles the payout). More goals
+      // are always possible until FT, so an unmet Over is never "impossible" —
+      // it's just priced longer. No time-based suspension (Over 4.5 at 0-0 in the
+      // 1st minute must stay open).
       if (goalsNeeded < 0) {
-        // Over/Under line already resolved (e.g., currently 3 goals, line is 1.5 or 2.5).
-        // The over was already hit, under is lost. Both selections are closed/suspended.
-        return null;
-      }
-
-      // If it's late in-play and goals needed is very high, suspend it
-      if (min >= 75 && goalsNeeded >= 1.5) {
         return null;
       }
 
       if (isOver) {
-        // Over: odds increase exponentially as time decreases since goals needed are not yet met
-        const baseMult = 1 + goalsNeeded * 2.5;
+        // Over: price lengthens with goals still needed and as time runs down —
+        // but is capped, never suspended, while it remains mathematically possible.
+        const baseMult = 1 + goalsNeeded * (0.8 + (1 - timeFactor) * 2.2);
         const newOdds = baseOdds * baseMult / Math.max(0.04, timeFactor);
-        return newOdds > 150 ? null : Number(newOdds.toFixed(2));
+        return Math.min(MAX_LIVE_ODDS, Number(newOdds.toFixed(2)));
       } else {
-        // Under: odds collapse down to 1.01 as time decays and goal line has not been hit
+        // Under: odds collapse toward 1.01 as time decays and the line holds.
         const safetyFactor = Math.max(0.01, timeFactor / (1 + goalsNeeded * 1.5));
         return Math.max(1.01, Number((baseOdds * safetyFactor).toFixed(2)));
       }
     }
 
     case "EXACT_SCORE": {
-      // Suspended if scoreDiff >= 3 or time is very late (min >= 75)
-      if (Math.abs(scoreDiff) >= 3 || min >= 72) {
-        return null;
-      }
       const parts = selectionId.split("-");
       if (parts.length !== 2) return baseOdds;
       const homeTarget = parseInt(parts[0]) || 0;
       const awayTarget = parseInt(parts[1]) || 0;
 
+      // Impossible once either side has already scored more than its target —
+      // that is the only true "dead" condition (no time-based suspension).
       if (homeScore > homeTarget || awayScore > awayTarget) {
-        // Market is dead (already covered/exceeded)
         return null;
       }
 
@@ -230,19 +231,15 @@ export function getLiveInPlayOdds(
         // Current score matches target score! Odds decay towards 1.01 as time runs out
         return Math.max(1.05, Number((baseOdds * Math.max(0.05, timeFactor)).toFixed(2)));
       } else {
-        // Target score requires more goals. Gets harder as times decays.
+        // Target score requires more goals. Priced longer as time decays, capped.
         const newOdds = baseOdds * (1 + missingGoals * 2.8) / Math.max(0.05, timeFactor);
-        return newOdds > 150 ? null : Number(newOdds.toFixed(2));
+        return Math.min(MAX_LIVE_ODDS, Number(newOdds.toFixed(2)));
       }
     }
 
     case "ANYTIME_GOALSCORER": {
-      // Suspended if min >= 80
-      if (min >= 80) return null;
-
-      // "Bets already covered should be marked unavailable"
-      // Any Time Goalscorer is won the moment the player scores.
-      // Let's check if there is a GOAL event for this player in the fixture events list.
+      // Won the moment the player scores — that (a decided win) is the only
+      // suspension. A player can score any time before FT, so no time cut-off.
       const alreadyScored = fixture.events.some(
         ev => ev.type === "GOAL" && ev.playerId === selectionId
       );
@@ -250,10 +247,10 @@ export function getLiveInPlayOdds(
         return null;
       }
 
-      // Otherwise, dynamic adjustment
+      // Odds drift up as the match runs on (fewer minutes left to score), capped.
       const strengthFactor = 1.0 + (min * 0.015);
       const newOdds = baseOdds * strengthFactor;
-      return newOdds > 100 ? null : Number(newOdds.toFixed(2));
+      return Math.min(MAX_LIVE_ODDS, Number(newOdds.toFixed(2)));
     }
 
     case "OVER_UNDER_CORNERS": {
@@ -264,19 +261,14 @@ export function getLiveInPlayOdds(
       const currentCorners = (fixture.stats.home.corners || 0) + (fixture.stats.away.corners || 0);
       const cornersNeeded = line - currentCorners;
 
-      // Already covered
+      // Suspend only when decided (line already passed). Otherwise always possible.
       if (cornersNeeded < 0) {
-        return null;
-      }
-
-      // Too late & high target
-      if (min >= 80 && cornersNeeded >= 2.5) {
         return null;
       }
 
       if (isOver) {
         const newOdds = baseOdds * (1 + cornersNeeded * 1.5) / Math.max(0.05, timeFactor);
-        return newOdds > 100 ? null : Number(newOdds.toFixed(2));
+        return Math.min(MAX_LIVE_ODDS, Number(newOdds.toFixed(2)));
       } else {
         return Math.max(1.01, Number((baseOdds * (timeFactor / (1 + cornersNeeded))).toFixed(2)));
       }
@@ -295,19 +287,14 @@ export function getLiveInPlayOdds(
 
       const cardsNeeded = line - currentCards;
 
-      // Already covered
+      // Suspend only when decided (line already passed).
       if (cardsNeeded < 0) {
-        return null;
-      }
-
-      // Too late
-      if (min >= 80 && cardsNeeded >= 1.5) {
         return null;
       }
 
       if (isOver) {
         const newOdds = baseOdds * (1 + cardsNeeded * 1.8) / Math.max(0.05, timeFactor);
-        return newOdds > 100 ? null : Number(newOdds.toFixed(2));
+        return Math.min(MAX_LIVE_ODDS, Number(newOdds.toFixed(2)));
       } else {
         return Math.max(1.01, Number((baseOdds * (timeFactor / (1 + cardsNeeded))).toFixed(2)));
       }
@@ -321,19 +308,14 @@ export function getLiveInPlayOdds(
       const currentSaves = (fixture.stats.home.saves || 0) + (fixture.stats.away.saves || 0);
       const savesNeeded = line - currentSaves;
 
-      // Already covered
+      // Suspend only when decided (line already passed).
       if (savesNeeded < 0) {
-        return null;
-      }
-
-      // Too late
-      if (min >= 80 && savesNeeded >= 2.5) {
         return null;
       }
 
       if (isOver) {
         const newOdds = baseOdds * (1 + savesNeeded * 1.4) / Math.max(0.05, timeFactor);
-        return newOdds > 100 ? null : Number(newOdds.toFixed(2));
+        return Math.min(MAX_LIVE_ODDS, Number(newOdds.toFixed(2)));
       } else {
         return Math.max(1.01, Number((baseOdds * (timeFactor / (1 + savesNeeded))).toFixed(2)));
       }

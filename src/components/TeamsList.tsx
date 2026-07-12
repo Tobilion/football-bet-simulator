@@ -3,6 +3,7 @@ import { Team, Player, Fixture } from "../types";
 import { TeamCrest } from "./TeamCrest";
 import { PitchFormation } from "./PitchFormation";
 import { calculateTeamRating } from "../engine/matchEngine";
+import { cleanPlayerName, isReservePlayer } from "../utils/playerUtils";
 
 interface TeamsListProps {
   teams: Team[];
@@ -273,7 +274,8 @@ export const TeamsList: React.FC<TeamsListProps> = ({ teams, fixtures }) => {
                           
                           <div className="flex flex-col gap-0.5 mt-auto">
                             <span className="font-bold text-slate-200 truncate">
-                              {p.name}
+                              {cleanPlayerName(p.name)}
+                              {isReservePlayer(p) && <span className="ml-1 text-[7px] font-bold text-amber-400 px-1 bg-amber-500/10 rounded border border-amber-500/20 align-middle">RES</span>}
                             </span>
                             <span className="text-[8px] text-slate-500 font-mono tracking-tighter truncate leading-tight">
                               Pld: {p.matchesPlayed} • Gls: {p.goals} • Ast: {p.assists}
@@ -289,7 +291,46 @@ export const TeamsList: React.FC<TeamsListProps> = ({ teams, fixtures }) => {
               {/* TAB 2: HISTORICAL RECORD & STATS */}
               {activeRightTab === "history" && (
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar max-h-[420px] glass-scrollbar">
-                  
+
+                  {/* Season-by-season history (persists across seasons) */}
+                  {(selectedTeam.seasonHistory?.length ?? 0) > 0 && (
+                    <div className="bg-black/35 border border-white/5 rounded-2xl p-3.5 space-y-2">
+                      <span className="text-[9px] font-mono font-bold tracking-widest text-amber-400 uppercase block">
+                        SEASON HISTORY ({selectedTeam.seasonHistory!.length})
+                      </span>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-[10px] font-mono">
+                          <thead>
+                            <tr className="text-slate-500 uppercase text-[8px]">
+                              <th className="text-left py-1">Season</th>
+                              <th className="text-center">Pos</th>
+                              <th className="text-center">W</th>
+                              <th className="text-center">D</th>
+                              <th className="text-center">L</th>
+                              <th className="text-center">GF</th>
+                              <th className="text-center">GA</th>
+                              <th className="text-center">Title</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[...selectedTeam.seasonHistory!].reverse().map((s) => (
+                              <tr key={s.seasonNumber} className="border-t border-white/5 text-slate-300">
+                                <td className="text-left py-1">S{s.seasonNumber}</td>
+                                <td className="text-center">{s.position || "-"}</td>
+                                <td className="text-center text-emerald-400">{s.won}</td>
+                                <td className="text-center">{s.drawn}</td>
+                                <td className="text-center text-red-400">{s.lost}</td>
+                                <td className="text-center">{s.goalsScored}</td>
+                                <td className="text-center">{s.goalsConceded}</td>
+                                <td className="text-center">{s.title ? "🏆" : "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Aggregated totals */}
                   {teamAggStats ? (
                     <div className="bg-black/35 border border-white/5 rounded-2xl p-3.5 space-y-3">
@@ -476,7 +517,7 @@ export const TeamsList: React.FC<TeamsListProps> = ({ teams, fixtures }) => {
                   CHAMPIONSHIP PLAYER CARD
                 </p>
                 <h3 className="text-base font-black text-slate-100 mt-1 leading-tight truncate max-w-full">
-                  {selectedPlayer.name}
+                  {cleanPlayerName(selectedPlayer.name)}
                 </h3>
                 <div className="flex items-center gap-1.5 mt-2 flex-wrap justify-center">
                   <span className="px-1.5 py-0.5 bg-white/5 border border-white/5 rounded text-[9px] font-mono text-slate-305 font-bold">

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Fixture, Team, BetSelection } from "../types";
 import { calculateMOTM } from "../utils/motmUtils";
+import { computeMatchRatings, ratingColorClass } from "../utils/playerRatingUtils";
+import { cleanPlayerName } from "../utils/playerUtils";
 import { TeamCrest } from "./TeamCrest";
 import { getLiveInPlayOdds } from "../utils";
 import { getTeamForm, getHeadToHead, getTeamGoalAvg } from "../utils/formUtils";
@@ -59,6 +61,20 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
   // Speed selection — default to broadcast (90s total watch time)
   const [speedMode, setSpeedMode] = useState<"broadcast" | "fast">("broadcast");
   const speedMap = { "broadcast": 8000, "fast": 2500 };
+
+  // "Pause at half-time" preference — persisted across matches and reloads.
+  // useSimulation reads the same key (fs_pause_at_halftime) to decide whether to
+  // halt at HT. Default ON (pause).
+  const [pauseAtHalftime, setPauseAtHalftime] = useState<boolean>(
+    () => localStorage.getItem("fs_pause_at_halftime") !== "false",
+  );
+  const togglePauseAtHalftime = () => {
+    setPauseAtHalftime((prev) => {
+      const next = !prev;
+      localStorage.setItem("fs_pause_at_halftime", next ? "true" : "false");
+      return next;
+    });
+  };
 
   const triggerGlobalEntity = (type: "team" | "player", id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -341,6 +357,22 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
                     ⏩ FAST FORWARD (6S)
                   </button>
                 </div>
+              )}
+
+              {/* Pause-at-half-time toggle (persisted) */}
+              {!isSelectedFT && (
+                <button
+                  onClick={togglePauseAtHalftime}
+                  className={`px-3 py-1.5 rounded-xl text-[9px] font-bold cursor-pointer transition-all border flex items-center gap-1.5 select-none ${
+                    pauseAtHalftime
+                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                      : "bg-white/5 text-slate-400 border-white/10"
+                  }`}
+                  title="When on, the match halts at half-time until you continue. When off, it plays straight through to full time."
+                >
+                  <span>{pauseAtHalftime ? "⏸️" : "▶️"}</span>
+                  PAUSE AT HALF-TIME: {pauseAtHalftime ? "ON" : "OFF"}
+                </button>
               )}
             </>
           ) : (
@@ -904,6 +936,37 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
                         <p className="text-2xl font-black text-yellow-400 font-mono">{motm.score.toFixed(1)}</p>
                         <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider">Match Rating</p>
                       </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              {isSelectedFT && (() => {
+                const { home, away } = computeMatchRatings(selectedFixture, teams);
+                if (home.length === 0 && away.length === 0) return null;
+                const hTeam = teams.find((t) => t.id === selectedFixture.homeTeamId);
+                const aTeam = teams.find((t) => t.id === selectedFixture.awayTeamId);
+                const renderCol = (label: string, list: typeof home) => (
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[9px] font-mono font-black uppercase tracking-widest text-slate-400 mb-1.5 truncate">{label}</p>
+                    <div className="space-y-1">
+                      {[...list].sort((x, y) => y.rating - x.rating).map((r) => (
+                        <div key={r.playerId} className={`flex items-center justify-between gap-2 rounded-lg px-2 py-1 border ${r.isMotm ? "border-yellow-500/40 bg-yellow-500/5" : "border-white/5 bg-black/20"}`}>
+                          <span className="text-[10px] text-slate-200 truncate flex items-center gap-1 min-w-0">
+                            {r.isMotm && <span title="Player of the Match">⭐</span>}
+                            <span className="truncate">{cleanPlayerName(r.name)}</span>
+                          </span>
+                          <span className={`text-[10px] font-black font-mono px-1.5 py-0.5 rounded border shrink-0 ${ratingColorClass(r.rating)}`}>{r.rating.toFixed(1)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+                return (
+                  <div className="mt-3 rounded-xl border border-white/5 bg-black/20 p-3">
+                    <p className="text-[9px] font-mono font-black uppercase tracking-widest text-emerald-400 mb-2">📊 Player Ratings (Full Time)</p>
+                    <div className="flex gap-3">
+                      {renderCol(hTeam?.shortName ?? "Home", home)}
+                      {renderCol(aTeam?.shortName ?? "Away", away)}
                     </div>
                   </div>
                 );

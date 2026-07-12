@@ -20,7 +20,9 @@ export const MyBets: React.FC<MyBetsProps> = ({ tickets, fixtures, teams, balanc
 
   // Calculate Betting stats
   const totalPlaced = tickets.length;
-  const wonTickets = tickets.filter(t => t.status === "WON");
+  // A cashed-out ticket is a positive resolution and counts toward wins (kept
+  // consistent with Analytics/careerUtils which also treat CASHED_OUT as won).
+  const wonTickets = tickets.filter(t => t.status === "WON" || t.status === "CASHED_OUT");
   const lostTickets = tickets.filter(t => t.status === "LOST");
   const pendingTickets = tickets.filter(t => t.status === "PENDING");
   

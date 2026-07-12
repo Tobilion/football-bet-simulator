@@ -1,5 +1,22 @@
 import { Position, PlayerSeasonStats, Player } from "../types";
 
+/**
+ * Reserve status used to leak into player names as a " (Res)" / "(GK - Res)"
+ * suffix. Names are now clean and reserve status lives on Player.isReserve, but
+ * older saved games persist the tag — strip it defensively at display time.
+ */
+export function cleanPlayerName(name: string): string {
+  return name
+    .replace(/\s*\(GK - Res\)/gi, " (GK)")
+    .replace(/\s*\(Res\)/gi, "")
+    .trim();
+}
+
+/** True if a player is a reserve, from the flag or a legacy name tag. */
+export function isReservePlayer(player: Pick<Player, "isReserve" | "name">): boolean {
+  return !!player.isReserve || /\(\s*(GK - )?Res\s*\)/i.test(player.name);
+}
+
 export function generatePlayerAge(position: Position): number {
   switch (position) {
     case "GK":

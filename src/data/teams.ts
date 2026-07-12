@@ -95,7 +95,7 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
     const gkLastSeed = (teamNum * 23 + idNum * 7 + 11) % pool.last.length;
     const gkFirst = pool.first[gkSeed] || "Keeper";
     const gkLast = pool.last[gkLastSeed] || "Safe";
-    const gkName = `${gkFirst} ${gkLast} ${isBench ? "(GK - Res)" : "(GK)"}`;
+    const gkName = `${gkFirst} ${gkLast} (GK)`;
     let gkRating = Math.max(70, Math.min(Math.round(rating * 18 + 5 + (teamNum % 5)), 98));
     if (isBench) gkRating = Math.max(60, gkRating - 10);
 
@@ -120,7 +120,8 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
       injuryRecoveryMatches: 0,
       seasonStats: generateEmptySeasonStats(),
       goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0,
-      abilities: gkAbils
+      abilities: gkAbils,
+      isReserve: isBench
     };
   };
 
@@ -130,7 +131,7 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
     const lSeed = (teamNum * 23 + idNum * 7 + 11) % pool.last.length;
     const defFirst = pool.first[fSeed] || "Defender";
     const defLast = pool.last[lSeed] || "Wall";
-    const defName = `${defFirst} ${defLast}${isBench ? " (Res)" : ""}`;
+    const defName = `${defFirst} ${defLast}`;
     let defRating = Math.max(68, Math.min(Math.round(rating * 17 + 3 + (fSeed % 8)), 95));
     if (isBench) defRating = Math.max(58, defRating - 8);
 
@@ -155,7 +156,8 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
       injuryRecoveryMatches: 0,
       seasonStats: generateEmptySeasonStats(),
       goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0,
-      abilities: defAbils
+      abilities: defAbils,
+      isReserve: isBench
     };
   };
 
@@ -191,7 +193,7 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
     const lSeed = (teamNum * 23 + idNum * 7 + 11) % pool.last.length;
     const midFirst = pool.first[fSeed] || "Midfielder";
     const midLast = pool.last[lSeed] || "Sparks";
-    const midName = `${midFirst} ${midLast}${isBench ? " (Res)" : ""}`;
+    const midName = `${midFirst} ${midLast}`;
     let midRating = Math.max(68, Math.min(Math.round(rating * 17.5 + 4 + (fSeed % 6)), 94));
     if (isBench) midRating = Math.max(58, midRating - 8);
 
@@ -216,7 +218,8 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
       injuryRecoveryMatches: 0,
       seasonStats: generateEmptySeasonStats(),
       goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0,
-      abilities: midAbils
+      abilities: midAbils,
+      isReserve: isBench
     };
   };
 
@@ -250,7 +253,7 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
     const lSeed = (teamNum * 23 + idNum * 7 + 11) % pool.last.length;
     const attFirst = pool.first[fSeed] || "Attacker";
     const attLast = pool.last[lSeed] || "Striker";
-    const attName = `${attFirst} ${attLast}${isBench ? " (Res)" : ""}`;
+    const attName = `${attFirst} ${attLast}`;
     let attRating = Math.max(68, Math.min(Math.round(rating * 17 + 2 + (fSeed % 7)), 94));
     if (isBench) attRating = Math.max(58, attRating - 8);
 
@@ -275,7 +278,8 @@ function generateDeterministicSquad(teamId: string, region: string, rating: numb
       injuryRecoveryMatches: 0,
       seasonStats: generateEmptySeasonStats(),
       goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0,
-      abilities: attAbils
+      abilities: attAbils,
+      isReserve: isBench
     };
   };
 

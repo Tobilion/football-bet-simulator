@@ -7,7 +7,10 @@ import { calculateCashOutValue, isCashOutEligible } from "../src/utils/cashOutUt
 import { calculateImpliedProbability, applyOwnerBoost } from "../src/utils/oddsUtils";
 import * as w from "../src/utils/wallet";
 import { getLiveInPlayOdds } from "../src/utils";
-import { generateMatchOdds, simulateFullMatchInstantly, calculateTeamRating } from "../src/engine/matchEngine";
+import { dedupeForAccumulator, marketGroupKey } from "../src/utils/betSlipUtils";
+import { simulateFullMatchInstantly, calculateTeamRating } from "../src/engine/matchEngine";
+import { computeMatchOdds } from "../src/engine/oddsEngine";
+import { blendedExpected } from "../src/utils/statsUtils";
 import type { BetSelection, BetTicket, Fixture, Team } from "../src/types";
 
 let pass = 0, fail = 0;
@@ -118,8 +121,15 @@ console.log("cashOutUtils");
   ok(isCashOutEligible(t, [liveFx]), "eligible when live");
   ok(!isCashOutEligible({ ...t, status: "WON" }, [liveFx]), "not eligible when settled");
   const v = calculateCashOutValue(t, [liveFx], { "MATCH_WINNER:HOME": 1.3 });
-  // factor = 2/1.3, payout 20 → 20*(2/1.3)*0.92 ≈ 28.31
-  ok(v !== null && Math.abs(v - 28.31) < 0.02, `winning live position pays above stake (got ${v})`);
+  // fair value = payout/currentOdds*0.92 = 20*(1/1.3)*0.92 ≈ 14.15, never above payout
+  ok(v !== null && Math.abs(v - 14.15) < 0.02, `winning live position priced fairly (got ${v})`);
+  ok(v !== null && v <= t.potentialPayout, "cashout never exceeds potential payout");
+  // Regression: Under corners near-certain must NOT balloon past payout.
+  // stake 500k @ 7.4 → payout 3.7M. Live odds collapse to 1.02 (near certain).
+  const cornersT: BetTicket = { ...accTicket, selections: [sel("OVER_UNDER_CORNERS", "UNDER_9.5", 7.4)], stake: 500000, potentialPayout: 3700000 };
+  const cornersLive = fx({ status: "LIVE", currentMinute: 85 });
+  const cv = calculateCashOutValue(cornersT, [cornersLive], { "OVER_UNDER_CORNERS:UNDER_9.5": 1.02 });
+  ok(cv !== null && cv > 0 && cv <= 3700000, `corners cashout clamped to payout (got ${cv}, was ~31M)`);
   ok(calculateCashOutValue(t, [liveFx], { "MATCH_WINNER:HOME": null }) === null, "suspended market → null");
   ok(calculateCashOutValue(t, [fx({ homeScore: 0, awayScore: 1 })], {}) === 0, "dead ticket (FT lost) → 0");
   const won = calculateCashOutValue(t, [fx({ homeScore: 2, awayScore: 0 })], {});
@@ -154,6 +164,22 @@ console.log("getLiveInPlayOdds");
   // covered line suspends
   const covered = fx({ status: "LIVE", currentMinute: 50, homeScore: 2, awayScore: 1 });
   ok(getLiveInPlayOdds(covered, "OVER_UNDER_GOALS", "OVER_2_5", 1.9) === null, "already-covered O/U line suspended");
+
+  // Suspension audit (#6): no over/under market is suspended at kickoff (0-0, min 1).
+  const kickoff = fx({ status: "LIVE", currentMinute: 1, homeScore: 0, awayScore: 0,
+    stats: { home: { corners: 0, yellowCards: 0, redCards: 0, saves: 0, shots: 0, shotsOnTarget: 0, fouls: 0, possession: 50 },
+             away: { corners: 0, yellowCards: 0, redCards: 0, saves: 0, shots: 0, shotsOnTarget: 0, fouls: 0, possession: 50 } } as any });
+  ok(typeof getLiveInPlayOdds(kickoff, "OVER_UNDER_GOALS", "OVER_4_5", 13) === "number", "Over 4.5 open at 0-0 kickoff (was wrongly suspended)");
+  ok(typeof getLiveInPlayOdds(kickoff, "OVER_UNDER_GOALS", "OVER_2_5", 1.9) === "number", "Over 2.5 open at 0-0 kickoff");
+  ok(typeof getLiveInPlayOdds(kickoff, "OVER_UNDER_CORNERS", "OVER_9.5", 1.9) === "number", "Over 9.5 corners open at kickoff");
+  // Even late, an unmet over is priced (capped), not suspended, while still possible.
+  const late = fx({ status: "LIVE", currentMinute: 85, homeScore: 0, awayScore: 0 });
+  ok(typeof getLiveInPlayOdds(late, "OVER_UNDER_GOALS", "OVER_4_5", 13) === "number", "Over 4.5 at 0-0 85' priced long, not suspended");
+  // Over 2.5 suspends only AFTER the 3rd goal (settles as won).
+  const twoGoals = fx({ status: "LIVE", currentMinute: 40, homeScore: 1, awayScore: 1 });
+  ok(typeof getLiveInPlayOdds(twoGoals, "OVER_UNDER_GOALS", "OVER_2_5", 1.9) === "number", "Over 2.5 still open at 2 goals");
+  const threeGoals = fx({ status: "LIVE", currentMinute: 41, homeScore: 2, awayScore: 1 });
+  ok(getLiveInPlayOdds(threeGoals, "OVER_UNDER_GOALS", "OVER_2_5", 1.9) === null, "Over 2.5 suspends after 3rd goal (decided)");
 }
 
 // ---------- Match engine ----------
@@ -172,10 +198,20 @@ console.log("matchEngine (200 simulated matches)");
   });
   const home = mkTeam("alpha"), away = mkTeam("beta");
   ok(calculateTeamRating(home) > 0, "team rating positive");
-  const odds = generateMatchOdds(home, away);
+  const odds = computeMatchOdds(home, away);
   ok(odds.homeWin >= 1.01 && odds.draw >= 1.01 && odds.awayWin >= 1.01, "generated odds all >= 1.01");
   const impliedSum = 1 / odds.homeWin + 1 / odds.draw + 1 / odds.awayWin;
   ok(impliedSum > 1 && impliedSum < 1.4, `1X2 overround sane (${impliedSum.toFixed(3)})`);
+
+  // #1 stats-driven odds: a much stronger side is a clear favourite, and two
+  // identical teams are near-even (home edge only).
+  const strong = mkTeam("strong"); strong.players.forEach((p: any) => (p.rating = 90));
+  const weak = mkTeam("weak"); weak.players.forEach((p: any) => (p.rating = 60));
+  const lop = computeMatchOdds(strong, weak);
+  ok(lop.homeWin < lop.awayWin - 0.5, `strong home favourite (${lop.homeWin} < ${lop.awayWin})`);
+  const even = computeMatchOdds(mkTeam("x"), mkTeam("y"));
+  ok(Math.abs(even.homeWin - even.awayWin) < 1.2, `evenly matched → similar 1X2 (${even.homeWin} vs ${even.awayWin})`);
+  ok(even.homeWin <= even.awayWin, "home carries a slight edge when equal");
 
   let bad = 0;
   for (let i = 0; i < 200; i++) {
@@ -228,6 +264,55 @@ console.log("wallet");
   ok(w.debit(100, -5) === null, "negative debit rejected");
   ok(w.credit(10.111, 0.111) === 10.22, "credit rounds to cents");
   ok(w.credit(50, -10) === 50, "negative credit ignored");
+}
+
+// ---------- Bet slip: mutual exclusivity (acca) ----------
+console.log("betSlipUtils.dedupeForAccumulator");
+{
+  const home = sel("MATCH_WINNER", "HOME", 2);
+  const away = sel("MATCH_WINNER", "AWAY", 3);
+  const over = sel("OVER_UNDER_GOALS", "OVER_2_5", 1.9);
+  ok(marketGroupKey(home) === marketGroupKey(away), "Home & Away share a market group (mutually exclusive)");
+  ok(marketGroupKey(home) !== marketGroupKey(over), "Match-winner and over/under are different groups");
+  const { kept, dropped } = dedupeForAccumulator([home, away, over]);
+  ok(kept.length === 2 && dropped.length === 1, "acca dedupe keeps Home+Over, drops Away");
+  ok(dropped[0].selectionId === "AWAY", "the second same-group pick is dropped");
+  // Two different anytime scorers are NOT exclusive.
+  const gsA = sel("ANYTIME_GOALSCORER", "p1", 3);
+  const gsB = sel("ANYTIME_GOALSCORER", "p2", 4);
+  ok(dedupeForAccumulator([gsA, gsB]).dropped.length === 0, "two different scorers allowed together");
+}
+
+// ---------- Stats aggregation + odds calibration ----------
+console.log("statsUtils shrinkage + odds calibration");
+{
+  // No history: blendedExpected returns the strength prior exactly.
+  const be0 = blendedExpected("H", "A", [], "corners", 5.2, 6, 4);
+  ok(Math.abs(be0.home - 6) < 1e-9 && Math.abs(be0.away - 4) < 1e-9, "no history → prior returned");
+  // Recorded history lifts the expectation toward the observed rate.
+  const mkFx = (i: number, hc: number): any => ({
+    id: `lh${i}`, homeTeamId: "H", awayTeamId: `Z${i}`, roundIndex: i, status: "FT",
+    homeScore: 1, awayScore: 1, currentMinute: 90, elapsedTicks: 15, events: [],
+    stats: { home: { corners: hc, yellowCards: 2, redCards: 0, saves: 4, shots: 12, shotsOnTarget: 5, fouls: 8, possession: 50, passes: 400 },
+             away: { corners: 3, yellowCards: 2, redCards: 0, saves: 4, shots: 12, shotsOnTarget: 5, fouls: 8, possession: 50, passes: 400 } },
+    odds: {}, weather: "Clear Sky",
+  });
+  const hist = [0,1,2,3,4,5].map((i) => mkFx(i, 15));
+  const be1 = blendedExpected("H", "A", hist, "corners", 5.2, 6, 4);
+  ok(be1.home > 8, `recorded 15-corner history lifts home corners expectation (got ${be1.home.toFixed(1)})`);
+
+  // Odds calibration: even teams → corner line fair around ~10, big favourite priced short.
+  const teamR = (id: string, r: number): any => ({
+    id, name: id, shortName: id, rating: 3.5, primaryColor: "#fff", secondaryColor: "#000",
+    players: [{ id: id + "gk", name: "gk", teamId: id, position: "GK", rating: r, age: 25, fatigue: 0, injured: false, injuryRecoveryMatches: 0, goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0, seasonStats: { goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0, motmAwards: 0 } },
+      ...["DEF","DEF","DEF","DEF","MID","MID","MID","MID","ATT","ATT","ATT"].map((pos, i) => ({ id: id + i, name: "p" + i, teamId: id, position: pos, rating: r, age: 25, fatigue: 0, injured: false, injuryRecoveryMatches: 0, goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0, seasonStats: { goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0, motmAwards: 0 } }))],
+    wonMatches: 0, drawnMatches: 0, lostMatches: 0, goalsScored: 0, goalsConceded: 0, morale: 60, rivalClubIds: [],
+  });
+  const oc = computeMatchOdds(teamR("H", 78), teamR("A", 78), []);
+  const l105 = oc.overUnderCorners!.find((l) => l.line === 10.5)!;
+  ok(Math.abs(l105.over - l105.under) < 0.7, `even corners fair near 10.5 (O${l105.over}/U${l105.under})`);
+  const strong = computeMatchOdds(teamR("H", 90), teamR("A", 64), []);
+  ok(strong.homeWin < 1.6 && strong.awayWin > 4, `favourite short, underdog long (H${strong.homeWin}/A${strong.awayWin})`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

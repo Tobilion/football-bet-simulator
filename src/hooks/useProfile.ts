@@ -25,14 +25,31 @@ export function useProfile(deps: UseProfileDeps) {
     tt: { [id: string]: BetTicket } = tipsterTickets,
   ) => persistStateToCache(gameMode, activeSlot, profile, t, f, ts, tt);
 
+  // Central, single source of truth for all casino money movements. Every game
+  // settles through here via a functional updater (prev => prev ± delta) so the
+  // computation always uses the freshest balance — never a stale prop closure —
+  // which prevents the balance-corruption races (staking more than you hold,
+  // wins overwriting the balance). Invariants enforced: result is finite, never
+  // negative, and capped below float-precision limits to avoid overflow.
+  const MAX_BALANCE = 1e15; // beyond this JS floats lose integer precision
   const handleUpdateBalanceCasino = (update: number | ((prev: number) => number)) => {
     setUserProfile((prev) => {
       if (!prev) return prev;
-      let nextBalance = typeof update === "function" ? update(prev.balance) : update;
-      if (!Number.isFinite(nextBalance)) return prev;
-      // Reject overdraws from stale-state double-clicks instead of clamping.
-      if (nextBalance < -1e-9) return prev;
-      nextBalance = Math.max(0, nextBalance);
+      const nextRaw = typeof update === "function" ? update(prev.balance) : update;
+      if (!Number.isFinite(nextRaw)) {
+        console.warn("[casino] rejected non-finite balance update", { prev: prev.balance, nextRaw });
+        return prev;
+      }
+      // A debit that would overdraw indicates a stake larger than the balance
+      // (stale state / double-click). Reject it so no un-funded bet slips through.
+      if (nextRaw < -1e-9) {
+        console.warn("[casino] rejected overdraw", { balance: prev.balance, attempted: nextRaw });
+        return prev;
+      }
+      const nextBalance = Math.min(MAX_BALANCE, Math.max(0, nextRaw));
+      if (nextBalance !== nextRaw && nextRaw > MAX_BALANCE) {
+        console.warn("[casino] balance capped at MAX_BALANCE", { nextRaw });
+      }
       const updated: Profile = {
         ...prev,
         balance: Math.round(nextBalance * 100) / 100,
@@ -201,6 +218,44 @@ export function useProfile(deps: UseProfileDeps) {
     persist(nextProfile, nextTeams);
   };
 
+  /**
+   * Stadium Naming Rights: rename an OWNED club's stadium for a fee. This grants
+   * NO ownership — it only updates the stadium name on a club the user already owns.
+   */
+  const handleRenameStadium = (teamId: string, newName: string, fee: number): boolean => {
+    if (!userProfile) return false;
+    const team = teams.find((t) => t.id === teamId);
+    if (!team?.ownership) return false;            // must already own the club
+    if (userProfile.balance < fee) return false;
+    const nextTeams = teams.map((t) => (t.id === teamId ? { ...t, stadiumName: newName } : t));
+    const nextProfile: Profile = { ...userProfile, balance: Math.round((userProfile.balance - fee) * 100) / 100 };
+    setTeams(nextTeams);
+    setUserProfile(nextProfile);
+    persist(nextProfile, nextTeams);
+    return true;
+  };
+
+  /**
+   * Training Complex Upgrade: permanently boost an OWNED club's player ratings by
+   * +2 (capped at 99) for a fee. Grants NO ownership.
+   */
+  const handleBoostClubRatings = (teamId: string, fee: number): boolean => {
+    if (!userProfile) return false;
+    const team = teams.find((t) => t.id === teamId);
+    if (!team?.ownership) return false;
+    if (userProfile.balance < fee) return false;
+    const nextTeams = teams.map((t) =>
+      t.id === teamId
+        ? { ...t, players: t.players.map((p) => ({ ...p, rating: Math.min(99, p.rating + 2) })) }
+        : t,
+    );
+    const nextProfile: Profile = { ...userProfile, balance: Math.round((userProfile.balance - fee) * 100) / 100 };
+    setTeams(nextTeams);
+    setUserProfile(nextProfile);
+    persist(nextProfile, nextTeams);
+    return true;
+  };
+
   const handleLiquidateVIPItem = (item: { id: string; worth: number; category?: string; teamId?: string }) => {
     if (!userProfile) return;
     const isClubSale = item.category === "Football Clubs";
@@ -239,6 +294,8 @@ export function useProfile(deps: UseProfileDeps) {
     handlePurchaseVIPItem,
     handleUpdateClubOwnership,
     handleUpgradeFacility,
+    handleRenameStadium,
+    handleBoostClubRatings,
     handleLiquidateVIPItem,
   };
 }

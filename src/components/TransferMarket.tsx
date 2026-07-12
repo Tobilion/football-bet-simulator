@@ -14,6 +14,7 @@ interface TransferMarketProps {
   userBids: { listingId: string; amount: number }[];
   onPlaceBid: (listingId: string, amount: number) => void;
   onWithdrawBid: (listingId: string) => void;
+  onRefresh?: () => void;
 }
 
 function currentHighestBid(listing: TransferListing, userBids: { listingId: string; amount: number }[]): number {
@@ -42,6 +43,7 @@ export const TransferMarket: React.FC<TransferMarketProps> = ({
   userBids,
   onPlaceBid,
   onWithdrawBid,
+  onRefresh,
 }) => {
   const ownedIds = ownedTeamIds.length > 0 ? ownedTeamIds : [ownedTeamId];
   const [selectedClubId, setSelectedClubId] = useState<string>(ownedTeamId);
@@ -237,9 +239,20 @@ export const TransferMarket: React.FC<TransferMarketProps> = ({
       <div className="flex flex-1 min-h-0 overflow-hidden gap-4 p-4">
         {/* Left: Available listings */}
         <div className="flex-1 flex flex-col min-h-0">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
-            Available Players ({openListings.length})
-          </p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              Available Players ({openListings.length})
+            </p>
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg transition-all active:scale-95 cursor-pointer"
+                title="Replace the list with a fresh set of players ($25,000 fee). Bids you've placed are kept."
+              >
+                🔄 Refresh list <span className="text-slate-500 normal-case">($25K)</span>
+              </button>
+            )}
+          </div>
           <div className="flex-1 overflow-y-auto space-y-3 pr-1 no-scrollbar">
             {openListings.length === 0 ? (
               <EmptyState

@@ -72,11 +72,16 @@ export function calculateCashOutValue(
       if (legResult === "PENDING" && fix.status === "LIVE") {
         const currentOdds = currentOddsMap[`${sel.marketType}:${sel.selectionId}`];
         if (currentOdds === null || currentOdds === undefined) return null; // suspended
-        legFactor = sel.odds / Math.max(1.01, currentOdds);
+        // Fair value of a live leg = stake × originalOdds / currentOdds.
+        // As the bet nears certainty currentOdds → 1 and value → stake × odds
+        // (the leg's full payout), never exceeding it.
+        legFactor = 1 / Math.max(1.01, currentOdds);
       }
       value += stake * sel.odds * legFactor;
     }
-    return Math.max(0, Math.round(value * 0.92 * 100) / 100);
+    const cashOut = Math.max(0, Math.round(value * 0.92 * 100) / 100);
+    // Safety net: live cash-out can never exceed the ticket's potential payout.
+    return Math.min(cashOut, ticket.potentialPayout);
   }
 
   let factor = 1.0;
@@ -94,10 +99,15 @@ export function calculateCashOutValue(
     } else if (legResult === "PENDING" && fix.status === "LIVE") {
       const currentOdds = currentOddsMap[`${sel.marketType}:${sel.selectionId}`];
       if (currentOdds === null || currentOdds === undefined) return null;
-      factor *= sel.odds / Math.max(1.01, currentOdds);
+      // Fair value multiplier for a live leg is 1/currentOdds (not odds/currentOdds):
+      // potentialPayout already embeds the original odds, so multiplying by
+      // odds/currentOdds double-counts them and can balloon far past the payout.
+      factor *= 1 / Math.max(1.01, currentOdds);
     }
     // legResult === "WON": factor stays 1.0
   }
 
-  return Math.max(0, Math.round(ticket.potentialPayout * factor * 0.92 * 100) / 100);
+  const cashOut = Math.max(0, Math.round(ticket.potentialPayout * factor * 0.92 * 100) / 100);
+  // Safety net: live cash-out can never exceed the ticket's potential payout.
+  return Math.min(cashOut, ticket.potentialPayout);
 }

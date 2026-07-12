@@ -1,4 +1,4 @@
-import { Fixture, Profile, Team, Tipster, BetTicket, TransferListing } from "../types";
+import { Fixture, Profile, Team, Tipster, BetTicket, TransferListing, TeamSeasonRecord } from "../types";
 import {
   generateNextRoundFixtures,
   updateRostersAndStatsAfterFixture,
@@ -70,6 +70,35 @@ function awardTrophyToOwnedChampion(
       ? { ...t, ownership: { ...t.ownership, trophies: [...(t.ownership.trophies ?? []), trophy] } }
       : t,
   );
+}
+
+// Appends the just-completed season's record onto each ranked team's permanent
+// seasonHistory. `ranking` is ordered best-first and carries the finished-season
+// W/D/L and goals (which may already be zeroed on the regenerated teams, so the
+// stats are passed explicitly). Records persist across seasons/tournaments.
+function appendSeasonRecords(
+  teamsList: Team[],
+  ranking: { id: string; won: number; drawn: number; lost: number; goalsScored: number; goalsConceded: number }[],
+  championId: string | undefined,
+): Team[] {
+  const posById = new Map<string, number>();
+  ranking.forEach((r, i) => posById.set(r.id, i + 1));
+  const statsById = new Map(ranking.map((r) => [r.id, r]));
+  return teamsList.map((t) => {
+    const stats = statsById.get(t.id);
+    if (!stats) return t;
+    const record: TeamSeasonRecord = {
+      seasonNumber: (t.seasonHistory?.length ?? 0) + 1,
+      position: posById.get(t.id) ?? 0,
+      won: stats.won,
+      drawn: stats.drawn,
+      lost: stats.lost,
+      goalsScored: stats.goalsScored,
+      goalsConceded: stats.goalsConceded,
+      title: t.id === championId,
+    };
+    return { ...t, seasonHistory: [...(t.seasonHistory ?? []), record] };
+  });
 }
 
 export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
@@ -216,7 +245,14 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
       });
       const { teams: newSeasonTeams, fixtures: newSeasonFixtures } = initializeNewLeagueSeason(mergedAll);
       nextRoundIdx = 0;
-      updatedTeamsList = awardTrophyToOwnedChampion(newSeasonTeams, leagueChampionId, ownedIds, "League Title");
+      // Record the finished season BEFORE the fresh (zeroed) teams take over —
+      // leagueSorted still holds the completed W/D/L and goals.
+      const leagueRanking = leagueSorted.map((t) => ({
+        id: t.id, won: t.wonMatches, drawn: t.drawnMatches, lost: t.lostMatches,
+        goalsScored: t.goalsScored, goalsConceded: t.goalsConceded,
+      }));
+      updatedTeamsList = appendSeasonRecords(newSeasonTeams, leagueRanking, leagueChampionId);
+      updatedTeamsList = awardTrophyToOwnedChampion(updatedTeamsList, leagueChampionId, ownedIds, "League Title");
       nextFixturesList = newSeasonFixtures;
       nextTipsterTickets = generateTipsterBetsForRound(updatedTipsters, newSeasonFixtures, newSeasonTeams);
     } else {
@@ -225,6 +261,20 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
       if (finalFx) {
         const winnerId = finalFx.homeScore > finalFx.awayScore ? finalFx.homeTeamId : finalFx.awayTeamId;
         championName = updatedTeamsList.find((t) => t.id === winnerId)?.name ?? "Champion";
+        // Record the completed tournament for every team (winner ranked first).
+        const cupRanking = [...updatedTeamsList]
+          .sort((a, b) => {
+            if (a.id === winnerId) return -1;
+            if (b.id === winnerId) return 1;
+            const pa = a.wonMatches * 3 + a.drawnMatches;
+            const pb = b.wonMatches * 3 + b.drawnMatches;
+            return pb - pa;
+          })
+          .map((t) => ({
+            id: t.id, won: t.wonMatches, drawn: t.drawnMatches, lost: t.lostMatches,
+            goalsScored: t.goalsScored, goalsConceded: t.goalsConceded,
+          }));
+        updatedTeamsList = appendSeasonRecords(updatedTeamsList, cupRanking, winnerId);
         updatedTeamsList = awardTrophyToOwnedChampion(updatedTeamsList, winnerId, ownedIds, "Cup Title");
       }
     }

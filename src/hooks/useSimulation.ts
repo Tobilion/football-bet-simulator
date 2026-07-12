@@ -113,7 +113,10 @@ export function useSimulation(deps: UseSimulationDeps) {
       }
 
       const htResumeKey = `ht_resume_${watchedId}`;
-      if (watchedFix.elapsedTicks === 7 && sessionStorage.getItem(htResumeKey) !== "true") {
+      // Respect the user's "Pause at half-time" preference (default on). When
+      // off, the match runs straight through to full time without halting at HT.
+      const pauseAtHalftime = localStorage.getItem("fs_pause_at_halftime") !== "false";
+      if (pauseAtHalftime && watchedFix.elapsedTicks === 7 && sessionStorage.getItem(htResumeKey) !== "true") {
         setIsSimulating(false);
         if (simTimerRef.current) clearInterval(simTimerRef.current);
         window.dispatchEvent(

@@ -12,6 +12,27 @@ interface VIPStoreProps {
   onLiquidate: (item: PurchasedItem) => void;
   teams?: Team[];
   ownedTeamId?: string;
+  ownedTeamIds?: string[];
+  onRenameStadium?: (teamId: string, newName: string, fee: number) => boolean;
+  onBoostRatings?: (teamId: string, fee: number) => boolean;
+}
+
+// Football-club store items and what each one actually does.
+type ClubActionKind = "buy" | "naming" | "training";
+const CLUB_ITEM_CONFIG: Record<string, { kind: ClubActionKind; tier?: "small" | "mid" | "elite" }> = {
+  club1: { kind: "buy", tier: "small" },   // Lower League
+  club2: { kind: "buy", tier: "mid" },     // Mid-table
+  club3: { kind: "buy", tier: "elite" },   // Elite
+  club4: { kind: "naming" },               // Stadium Naming Rights
+  club5: { kind: "training" },             // Training Complex Upgrade
+};
+
+/** Classify a club into a purchase tier by star rating / division. */
+function teamTier(t: Team): "small" | "mid" | "elite" {
+  const r = t.rating;
+  if ((t.division ?? 1) === 2 || r < 3.5) return "small";
+  if (r < 4.3) return "mid";
+  return "elite";
 }
 
 const CATEGORIES = ["All", ...Array.from(new Set(STORE_ITEMS.map(i => i.category)))];
@@ -23,16 +44,31 @@ const RarityColors: Record<string, string> = {
   "Legendary": "bg-amber-500/20 text-amber-500 border-amber-500/50 shadow-[0_0_8px_rgba(245,158,11,0.4)] animate-[pulse_2s_ease-in-out_infinite]"
 };
 
-export const VIPStore: React.FC<VIPStoreProps> = ({ balance, purchasedItems, onPurchase, onLiquidate, teams = [], ownedTeamId }) => {
+export const VIPStore: React.FC<VIPStoreProps> = ({ balance, purchasedItems, onPurchase, onLiquidate, teams = [], ownedTeamId, ownedTeamIds = [], onRenameStadium, onBoostRatings }) => {
   const [activeTab, setActiveTab] = useState<"store" | "inventory">("store");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [clubPickerItem, setClubPickerItem] = useState<LuxuryItem | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
+  const [stadiumNameInput, setStadiumNameInput] = useState<string>("");
 
-  // Teams available to purchase (no existing ownership, div 2 for cheap tier, div 1 for expensive)
-  const purchasableTeams = useMemo(() => {
-    return teams.filter(t => !t.ownership && t.id !== ownedTeamId);
-  }, [teams, ownedTeamId]);
+  const clubConfig = clubPickerItem ? CLUB_ITEM_CONFIG[clubPickerItem.id] : undefined;
+  const clubAction: ClubActionKind = clubConfig?.kind ?? "buy";
+  const ownedIds = ownedTeamIds.length > 0 ? ownedTeamIds : (ownedTeamId ? [ownedTeamId] : []);
+
+  // Which teams the picker should list depends on the action:
+  //  - buy: unowned clubs in the item's tier only
+  //  - naming / training: clubs the user ALREADY owns (these don't grant ownership)
+  const pickerTeams = useMemo(() => {
+    if (!clubPickerItem) return [];
+    if (clubAction === "buy") {
+      const tier = clubConfig?.tier;
+      return teams.filter(
+        (t) => !t.ownership && !ownedIds.includes(t.id) && (!tier || teamTier(t) === tier),
+      );
+    }
+    // naming / training operate on owned clubs
+    return teams.filter((t) => ownedIds.includes(t.id) || !!t.ownership);
+  }, [clubPickerItem, clubAction, clubConfig, teams, ownedIds]);
 
   const totalWorth = purchasedItems.reduce((sum, item) => sum + item.worth, 0);
 
@@ -147,6 +183,7 @@ export const VIPStore: React.FC<VIPStoreProps> = ({ balance, purchasedItems, onP
                       if (item.category === "Football Clubs") {
                         setClubPickerItem(item);
                         setSelectedTeamId("");
+                        setStadiumNameInput("");
                       } else {
                         onPurchase({ ...item, worth: Math.floor(item.price * 0.85), icon: item.imageUrl });
                       }
@@ -154,9 +191,13 @@ export const VIPStore: React.FC<VIPStoreProps> = ({ balance, purchasedItems, onP
                     disabled={balance < item.price}
                     className="w-full py-2 rounded-xl font-bold text-[10px] uppercase cursor-pointer disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-600 bg-amber-500 hover:bg-amber-400 text-amber-950 transition-colors shadow-lg active:scale-[0.98]"
                   >
-                    {balance >= item.price
-                      ? item.category === "Football Clubs" ? "Choose Club →" : "Acquire Asset"
-                      : "Insufficient Wallet"}
+                    {balance < item.price
+                      ? "Insufficient Wallet"
+                      : item.category === "Football Clubs"
+                      ? (CLUB_ITEM_CONFIG[item.id]?.kind === "naming" ? "Name Stadium →"
+                        : CLUB_ITEM_CONFIG[item.id]?.kind === "training" ? "Upgrade Club →"
+                        : "Choose Club →")
+                      : "Acquire Asset"}
                   </button>
                 </div>
               </div>
@@ -237,14 +278,22 @@ export const VIPStore: React.FC<VIPStoreProps> = ({ balance, purchasedItems, onP
           <div className="glass-panel border border-amber-500/30 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-base font-black text-amber-400">Choose Your Club</h3>
-                <p className="text-xs text-slate-400">Select a team to purchase for {formatMoney(clubPickerItem.price)}</p>
+                <h3 className="text-base font-black text-amber-400">
+                  {clubAction === "buy" ? "Choose Your Club" : clubAction === "naming" ? "Stadium Naming Rights" : "Training Complex Upgrade"}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {clubAction === "buy"
+                    ? `Select a ${clubConfig?.tier ?? ""} club to purchase for ${formatMoney(clubPickerItem.price)}`
+                    : clubAction === "naming"
+                    ? `Pick one of YOUR clubs to rename its stadium (${formatMoney(clubPickerItem.price)} fee — no ownership granted)`
+                    : `Pick one of YOUR clubs to boost every player +2 rating (${formatMoney(clubPickerItem.price)} fee)`}
+                </p>
               </div>
-              <button onClick={() => setClubPickerItem(null)} className="text-slate-400 hover:text-white text-lg cursor-pointer">✕</button>
+              <button onClick={() => { setClubPickerItem(null); setStadiumNameInput(""); }} className="text-slate-400 hover:text-white text-lg cursor-pointer">✕</button>
             </div>
 
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {purchasableTeams.map(team => (
+              {pickerTeams.map(team => (
                 <button
                   key={team.id}
                   onClick={() => setSelectedTeamId(team.id)}
@@ -271,35 +320,63 @@ export const VIPStore: React.FC<VIPStoreProps> = ({ balance, purchasedItems, onP
                   )}
                 </button>
               ))}
-              {purchasableTeams.length === 0 && (
-                <p className="text-xs text-slate-500 text-center py-6">No available teams to purchase.</p>
+              {pickerTeams.length === 0 && (
+                <p className="text-xs text-slate-500 text-center py-6">
+                  {clubAction === "buy" ? "No available clubs in this tier." : "You don't own any clubs yet — buy one first."}
+                </p>
               )}
             </div>
 
+            {/* Naming rights needs a new stadium name */}
+            {clubAction === "naming" && selectedTeamId && (
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">New Stadium Name</label>
+                <input
+                  value={stadiumNameInput}
+                  onChange={(e) => setStadiumNameInput(e.target.value)}
+                  placeholder="e.g. Tobi Arena"
+                  maxLength={40}
+                  className="w-full text-xs p-2.5 rounded-xl bg-black/30 border border-white/10 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
+                />
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button
-                onClick={() => setClubPickerItem(null)}
+                onClick={() => { setClubPickerItem(null); setSelectedTeamId(""); setStadiumNameInput(""); }}
                 className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-400 border border-white/10 hover:bg-white/5 cursor-pointer transition-all"
               >
                 Cancel
               </button>
               <button
-                disabled={!selectedTeamId}
+                disabled={
+                  !selectedTeamId ||
+                  balance < clubPickerItem.price ||
+                  (clubAction === "naming" && !stadiumNameInput.trim())
+                }
                 onClick={() => {
                   if (!selectedTeamId) return;
-                  onPurchase({
-                    ...clubPickerItem,
-                    worth: Math.floor(clubPickerItem.price * 0.85),
-                    icon: clubPickerItem.imageUrl,
-                    teamId: selectedTeamId,
-                    name: `${teams.find(t => t.id === selectedTeamId)?.name ?? "Club"} — Ownership`,
-                  });
+                  const teamName = teams.find(t => t.id === selectedTeamId)?.name ?? "Club";
+                  if (clubAction === "buy") {
+                    onPurchase({
+                      ...clubPickerItem,
+                      worth: Math.floor(clubPickerItem.price * 0.85),
+                      icon: clubPickerItem.imageUrl,
+                      teamId: selectedTeamId,
+                      name: `${teamName} — Ownership`,
+                    });
+                  } else if (clubAction === "naming") {
+                    onRenameStadium?.(selectedTeamId, stadiumNameInput.trim(), clubPickerItem.price);
+                  } else if (clubAction === "training") {
+                    onBoostRatings?.(selectedTeamId, clubPickerItem.price);
+                  }
                   setClubPickerItem(null);
                   setSelectedTeamId("");
+                  setStadiumNameInput("");
                 }}
                 className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-amber-950 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               >
-                Confirm Purchase
+                {clubAction === "buy" ? "Confirm Purchase" : clubAction === "naming" ? "Rename Stadium" : "Upgrade Training"}
               </button>
             </div>
           </div>

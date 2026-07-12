@@ -45,6 +45,7 @@ export interface Player {
   abilities?: PlayerAbilities;
   injuredRounds?: number;
   suspendedRounds?: number;
+  isReserve?: boolean; // bench/reserve squad member; shown as a badge, never in the name
 }
 
 export type Formation = "4-4-2" | "4-3-3" | "3-5-2" | "4-2-3-1" | "5-3-2" | "3-4-3";
@@ -98,6 +99,18 @@ export interface Team {
   stadiumName?: string;
   city?: string;
   country?: string;
+  seasonHistory?: TeamSeasonRecord[]; // completed season-by-season records (persists across seasons)
+}
+
+export interface TeamSeasonRecord {
+  seasonNumber: number;
+  position: number;      // final league/tournament position (1 = champion)
+  won: number;
+  drawn: number;
+  lost: number;
+  goalsScored: number;
+  goalsConceded: number;
+  title: boolean;        // whether the team won the competition that season
 }
 
 export type FixtureStatus = "SCHEDULED" | "LIVE" | "FT";

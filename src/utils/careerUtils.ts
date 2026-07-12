@@ -37,9 +37,11 @@ export function buildSeasonRecord(
   const settled = allTickets.filter(
     (t) => t.status === "WON" || t.status === "LOST" || t.status === "CASHED_OUT",
   );
-  const won = settled.filter((t) => t.status === "WON");
+  // Cashing out for any amount is a positive resolution and counts as a win.
+  const won = settled.filter((t) => t.status === "WON" || t.status === "CASHED_OUT");
   const biggestWin = won.reduce(
-    (max, t) => Math.max(max, t.potentialPayout - t.stake),
+    (max, t) =>
+      Math.max(max, (t.status === "CASHED_OUT" ? (t.cashedOutAmount ?? 0) : t.potentialPayout) - t.stake),
     0,
   );
   const netProfit = settled.reduce((acc, t) => {

@@ -1,6 +1,6 @@
 import { Team, Player, Fixture, FixtureStatus, MatchStats, WeatherCondition } from "../types";
 import { getInitialTeams } from "./teams";
-import { generateMatchOdds } from "../engine/matchEngine";
+import { computeMatchOdds } from "../engine/oddsEngine";
 import { developPlayer } from "../utils/playerUtils";
 import { selectMatchWeather } from "../engine/weatherEngine";
 
@@ -40,7 +40,7 @@ export function initializeNewTournament(): { teams: Team[]; fixtures: Fixture[] 
     const away = shuffledTeams[i * 2 + 1];
     
     // Odds
-    const odds = generateMatchOdds(home, away);
+    const odds = computeMatchOdds(home, away);
     const weather = generateRandomWeather();
     
     fixtures.push({
@@ -97,7 +97,7 @@ export function generateNextRoundFixtures(
     const homeTeam = teamMap.get(homeId)!;
     const awayTeam = teamMap.get(awayId)!;
     
-    const odds = generateMatchOdds(homeTeam, awayTeam);
+    const odds = computeMatchOdds(homeTeam, awayTeam, currentFixtures);
     const weather = generateRandomWeather();
 
     nextFixtures.push({
@@ -278,7 +278,7 @@ export function initializeNewLeague(): { teams: Team[]; fixtures: Fixture[] } {
       const finalHome = (round + i) % 2 === 0 ? home : away;
       const finalAway = (round + i) % 2 === 0 ? away : home;
       
-      const odds = generateMatchOdds(finalHome, finalAway);
+      const odds = computeMatchOdds(finalHome, finalAway);
       const weather = generateRandomWeather();
       fixtures.push({
         id: `l-r${round}-f${i}`,
@@ -385,7 +385,7 @@ export function initializeNewLeagueSeason(allTeams: Team[]): { teams: Team[]; fi
       const away = rotation[n - 1 - i];
       const finalHome = (round + i) % 2 === 0 ? home : away;
       const finalAway = (round + i) % 2 === 0 ? away : home;
-      const odds = generateMatchOdds(finalHome, finalAway);
+      const odds = computeMatchOdds(finalHome, finalAway);
       const weather = generateRandomWeather();
       fixtures.push({
         id: `ls-r${round}-f${i}`,

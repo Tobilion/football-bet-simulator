@@ -1,15 +1,23 @@
 import React from "react";
-import { CareerProfile } from "../types";
+import { CareerProfile, Profile } from "../types";
 import { formatMoney } from "../utils";
+import { buildSeasonRecord } from "../utils/careerUtils";
 
 interface CareerStatsProps {
   career: CareerProfile;
+  liveProfile?: Profile | null;
+  gameMode?: "TOURNAMENT" | "LEAGUE" | null;
 }
 
 const PRESTIGE_ICONS = ["🎲", "🃏", "💼", "🏅", "👑", "🐐"];
 const SEASONS_PER_LEVEL = 3;
 
-export const CareerStats: React.FC<CareerStatsProps> = ({ career }) => {
+export const CareerStats: React.FC<CareerStatsProps> = ({ career, liveProfile, gameMode }) => {
+  // Live, in-progress season stats so the Career tab visibly advances as matches
+  // are played, rather than only updating when a whole season concludes.
+  const live = liveProfile && gameMode
+    ? buildSeasonRecord(liveProfile, "—", gameMode, career.totalSeasonsPlayed + 1)
+    : null;
   const icon = PRESTIGE_ICONS[Math.min(career.prestigeLevel, PRESTIGE_ICONS.length - 1)];
   const seasonsIntoLevel = career.totalSeasonsPlayed % SEASONS_PER_LEVEL;
   const isMaxLevel = career.prestigeLevel >= PRESTIGE_ICONS.length - 1;
@@ -29,6 +37,36 @@ export const CareerStats: React.FC<CareerStatsProps> = ({ career }) => {
           {career.totalSeasonsPlayed === 1 ? "" : "s"} played
         </p>
       </div>
+
+      {/* In-progress season (live) */}
+      {live && (
+        <div className="glass-card border border-emerald-400/20 rounded-2xl p-4 bg-gradient-to-b from-emerald-400/5 to-transparent">
+          <div className="flex justify-between items-center mb-3">
+            <p className="text-[9px] font-black tracking-widest text-emerald-400 uppercase">Current Season — In Progress</p>
+            <span className="text-[9px] font-mono text-slate-500 uppercase">{gameMode}</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div>
+              <p className="text-[8px] text-slate-500 uppercase font-bold">Bets Placed</p>
+              <p className="text-lg font-black font-mono text-white mt-0.5">{live.totalBetsPlaced}</p>
+            </div>
+            <div>
+              <p className="text-[8px] text-slate-500 uppercase font-bold">Bets Won</p>
+              <p className="text-lg font-black font-mono text-emerald-400 mt-0.5">{live.totalBetsWon}</p>
+            </div>
+            <div>
+              <p className="text-[8px] text-slate-500 uppercase font-bold">Win Rate</p>
+              <p className="text-lg font-black font-mono text-white mt-0.5">{live.winRate}%</p>
+            </div>
+            <div>
+              <p className="text-[8px] text-slate-500 uppercase font-bold">Net Profit</p>
+              <p className={`text-lg font-black font-mono mt-0.5 ${live.netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {live.netProfit >= 0 ? "+" : ""}{formatMoney(live.netProfit)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* All-time stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

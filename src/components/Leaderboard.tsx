@@ -1,5 +1,17 @@
-import React from "react";
+import React, { useState } from "react";
 import { Tipster } from "../types";
+
+/**
+ * Deterministic last-5 form derived from strike rate so a competitor's form
+ * badges are stable across renders (higher accuracy → more wins, spread out).
+ */
+function deriveRecentForm(accuracy: number): ("W" | "L")[] {
+  const wins = Math.max(0, Math.min(5, Math.round((accuracy / 100) * 5)));
+  // Spread `wins` W's across 5 slots deterministically (count always = wins).
+  return Array.from({ length: 5 }, (_, i) =>
+    (Math.floor((i * wins) / 5) !== Math.floor(((i + 1) * wins) / 5) ? "W" : "L"),
+  );
+}
 
 interface LeaderboardProps {
   tipsters: Tipster[];
@@ -14,9 +26,11 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
   username,
   tickets
 }) => {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   // Compile user stats to resemble a Tipster structure
   const totalPlaced = tickets.length;
-  const wonTickets = tickets.filter(t => t.status === "WON");
+  const wonTickets = tickets.filter(t => t.status === "WON" || t.status === "CASHED_OUT");
   const pendingTickets = tickets.filter(t => t.status === "PENDING");
   const accuracy = totalPlaced > 0 ? Math.round((wonTickets.length / (totalPlaced - pendingTickets.length || 1)) * 100) : 0;
 
@@ -62,12 +76,16 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
           if (idx === 1) rankIcon = "🥈 #2";
           if (idx === 2) rankIcon = "🥉 #3";
 
+          const isExpanded = expandedId === comp.id;
+          const recentForm = deriveRecentForm(comp.accuracy);
+
           return (
             <div
               key={comp.id}
-              className={`glass-card border rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all duration-150 ${
-                isUser 
-                  ? "border-emerald-450 bg-emerald-500/5 shadow-[0_0_15px_rgba(16,185,129,0.1)]" 
+              onClick={() => setExpandedId(isExpanded ? null : comp.id)}
+              className={`glass-card border rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all duration-150 cursor-pointer ${
+                isUser
+                  ? "border-emerald-450 bg-emerald-500/5 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
                   : "border-white/5 hover:border-white/15 hover:bg-white/5"
               }`}
             >
@@ -138,6 +156,53 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                   <div className="truncate pt-1 leading-tight" title={comp.recentTips[0]}>
                     📝 {comp.recentTips[0]}
                   </div>
+                </div>
+              )}
+
+              {/* Expandable detail panel — recent form, key stats, record */}
+              {isExpanded && (
+                <div className="w-full basis-full border-t border-white/10 pt-3 mt-1 space-y-3 select-none">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[8px] uppercase text-slate-500 font-extrabold tracking-widest">Last 5</span>
+                    <div className="flex gap-1">
+                      {recentForm.map((r, i) => (
+                        <span
+                          key={i}
+                          className={`h-5 w-5 rounded flex items-center justify-center text-[9px] font-black ${
+                            r === "W" ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+                          }`}
+                        >
+                          {r}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
+                    <div className="bg-black/30 rounded-lg p-2 border border-white/5">
+                      <span className="text-[8px] text-slate-500 uppercase block font-bold">Record (W/T)</span>
+                      <span className="text-xs font-black text-slate-200">{comp.betsWon}/{comp.betsTotal}</span>
+                    </div>
+                    <div className="bg-black/30 rounded-lg p-2 border border-white/5">
+                      <span className="text-[8px] text-slate-500 uppercase block font-bold">Strike Rate</span>
+                      <span className="text-xs font-black text-emerald-400">{comp.accuracy}%</span>
+                    </div>
+                    <div className="bg-black/30 rounded-lg p-2 border border-white/5">
+                      <span className="text-[8px] text-slate-500 uppercase block font-bold">Balance</span>
+                      <span className="text-xs font-black text-slate-200">${comp.balance.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                    </div>
+                    <div className="bg-black/30 rounded-lg p-2 border border-white/5">
+                      <span className="text-[8px] text-slate-500 uppercase block font-bold">Style</span>
+                      <span className="text-xs font-black text-slate-200">{comp.riskProfile}</span>
+                    </div>
+                  </div>
+                  {comp.recentTips.length > 0 && (
+                    <div className="bg-black/30 rounded-lg p-2.5 border border-white/5 space-y-1">
+                      <span className="text-[8px] text-slate-500 uppercase font-bold tracking-widest block">Recent Tips</span>
+                      {comp.recentTips.map((tip, i) => (
+                        <div key={i} className="text-[10px] text-slate-400 font-mono leading-tight truncate" title={tip}>• {tip}</div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

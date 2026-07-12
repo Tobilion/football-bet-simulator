@@ -137,5 +137,42 @@ rtpOk("Spin the Bottle", 0.49 * 1.98);
   }
 }
 
+// ---------- Central balance adjuster integrity ----------
+// Mirrors handleUpdateBalanceCasino: functional updates on the freshest balance,
+// finite + non-negative + overflow-capped. balance === start − stakes + wins.
+{
+  const MAX_BALANCE = 1e15;
+  function makeBalance(start: number) {
+    let bal = start;
+    const adjust = (update: number | ((p: number) => number)) => {
+      const raw = typeof update === "function" ? update(bal) : update;
+      if (!Number.isFinite(raw)) return;      // reject NaN/Infinity
+      if (raw < -1e-9) return;                // reject overdraw (unfunded bet)
+      bal = Math.round(Math.min(MAX_BALANCE, Math.max(0, raw)) * 100) / 100;
+    };
+    return { adjust, get: () => bal };
+  }
+
+  // Scenario from the bug report: lose a bet, then win a scratch card.
+  const b = makeBalance(1000);
+  b.adjust((p) => p - 200);            // lose a $200 bet
+  ok(b.get() === 800, `after losing $200 stake, balance is 800 (got ${b.get()})`);
+  b.adjust((p) => p - 50);             // buy a $50 scratch card
+  b.adjust((p) => p + 50 * 20);        // scratch wins 20x → +1000
+  ok(b.get() === 1750, `after loss→scratch win, balance = start−stakes+wins = 1750 (got ${b.get()})`);
+
+  // Cannot stake more than you hold: an overdraw is rejected, balance unchanged.
+  const c = makeBalance(100);
+  c.adjust((p) => p - 1_000_000_000);  // attempt to stake a billion
+  ok(c.get() === 100, `overdraw rejected — balance stays 100 (got ${c.get()})`);
+
+  // Never negative; never NaN.
+  const d = makeBalance(10);
+  d.adjust((p) => p - 10);
+  ok(d.get() === 0, "balance can reach exactly 0");
+  d.adjust(() => NaN);
+  ok(d.get() === 0, "NaN update rejected, balance stays 0");
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

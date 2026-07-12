@@ -12,6 +12,7 @@ import {
 import { persistStateToCache } from "../utils/storage";
 import { credit, debit, round2 } from "../utils/wallet";
 import { computeAccaOdds } from "../utils/betBuilderUtils";
+import { settlePendingTickets } from "../utils/betSettlement";
 import { addToast } from "../hooks/useToast";
 
 interface UseBettingDeps {
@@ -26,7 +27,6 @@ interface UseBettingDeps {
   setCollapsedSlip: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const OUTCOME_MARKETS: MarketType[] = ["MATCH_WINNER", "DOUBLE_CHANCE", "EXACT_SCORE"];
 
 export function useBetting(deps: UseBettingDeps) {
   const {
@@ -46,72 +46,30 @@ export function useBetting(deps: UseBettingDeps) {
   const persist = (profile: Profile) =>
     persistStateToCache(gameMode, activeSlot, profile, teams, fixtures, tipsters, tipsterTickets);
 
+  const sameSelection = (a: BetSelection, b: BetSelection) =>
+    a.fixtureId === b.fixtureId &&
+    a.marketType === b.marketType &&
+    a.selectionId === b.selectionId;
+
   const handleAddBetSelection = (newSel: BetSelection) => {
     setCollapsedSlip(false);
+    // Pure toggle: clicking a selection adds it, clicking it again removes it.
+    // Mutually-exclusive outcomes from the same match (e.g. Home + Away) are now
+    // allowed to coexist in the slip so they can be placed as separate singles.
+    // The accumulator view enforces exclusivity separately (see BettingSlip).
     setSelectedBets((prev) => {
-      let filtered = prev;
-      if (newSel.marketType === "ANYTIME_GOALSCORER") {
-        filtered = prev.filter(
-          (s) =>
-            !(
-              s.fixtureId === newSel.fixtureId &&
-              s.marketType === "ANYTIME_GOALSCORER" &&
-              s.selectionId === newSel.selectionId
-            ),
-        );
-      } else if (OUTCOME_MARKETS.includes(newSel.marketType)) {
-        filtered = prev.filter(
-          (s) =>
-            !(
-              s.fixtureId === newSel.fixtureId &&
-              OUTCOME_MARKETS.includes(s.marketType)
-            ),
-        );
-      } else {
-        filtered = prev.filter(
-          (s) =>
-            !(
-              s.fixtureId === newSel.fixtureId &&
-              s.marketType === newSel.marketType
-            ),
-        );
-      }
-      return [...filtered, newSel];
+      const exists = prev.some((s) => sameSelection(s, newSel));
+      if (exists) return prev.filter((s) => !sameSelection(s, newSel));
+      return [...prev, newSel];
     });
   };
 
   const handleAddMultipleSelections = (newSels: BetSelection[]) => {
     setCollapsedSlip(false);
     setSelectedBets((prev) => {
-      let current = [...prev];
+      const current = [...prev];
       newSels.forEach((newSel) => {
-        if (newSel.marketType === "ANYTIME_GOALSCORER") {
-          current = current.filter(
-            (s) =>
-              !(
-                s.fixtureId === newSel.fixtureId &&
-                s.marketType === "ANYTIME_GOALSCORER" &&
-                s.selectionId === newSel.selectionId
-              ),
-          );
-        } else if (OUTCOME_MARKETS.includes(newSel.marketType)) {
-          current = current.filter(
-            (s) =>
-              !(
-                s.fixtureId === newSel.fixtureId &&
-                OUTCOME_MARKETS.includes(s.marketType)
-              ),
-          );
-        } else {
-          current = current.filter(
-            (s) =>
-              !(
-                s.fixtureId === newSel.fixtureId &&
-                s.marketType === newSel.marketType
-              ),
-          );
-        }
-        current.push(newSel);
+        if (!current.some((s) => sameSelection(s, newSel))) current.push(newSel);
       });
       return current;
     });
@@ -159,35 +117,45 @@ export function useBetting(deps: UseBettingDeps) {
       return;
     }
 
-    // Same-game-multi pricing: same-fixture legs get a correlation discount.
-    const totalOdds = computeAccaOdds(selectedBets);
+    let newTickets: BetTicket[];
+    if (type === "SINGLE") {
+      // Each single is its OWN independent ticket — its own stake, odds,
+      // settlement and cash-out. Placing several singles at once no longer
+      // groups them into a single multi-leg ticket.
+      const ts = Date.now();
+      newTickets = selectedBets.map((b, i) => {
+        const key = `${b.fixtureId}-${b.marketType}-${b.selectionId}`;
+        const stake = round2(selectionStakes?.[key] ?? totalStake / selectedBets.length);
+        return {
+          id: `ticket-${ts}-${i}-${Math.floor(Math.random() * 1000)}`,
+          type: "SINGLE" as const,
+          selections: [b],
+          totalOdds: b.odds,
+          stake,
+          potentialPayout: round2(stake * b.odds),
+          status: "PENDING" as const,
+          timestamp: ts,
+        };
+      });
+    } else {
+      // Same-game-multi pricing: same-fixture legs get a correlation discount.
+      const totalOdds = computeAccaOdds(selectedBets);
+      newTickets = [{
+        id: `ticket-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        type,
+        selections: [...selectedBets],
+        totalOdds,
+        stake: totalStake,
+        potentialPayout: Math.round(totalStake * totalOdds * 100) / 100,
+        status: "PENDING",
+        timestamp: Date.now(),
+      }];
+    }
 
-    const newTicket: BetTicket = {
-      id: `ticket-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      type,
-      selections: [...selectedBets],
-      totalOdds: type === "SINGLE" ? 1 : totalOdds,
-      stake: totalStake,
-      potentialPayout:
-        type === "SINGLE"
-          ? Math.round(
-              selectedBets.reduce((sum, b) => {
-                const key = `${b.fixtureId}-${b.marketType}-${b.selectionId}`;
-                const st = selectionStakes?.[key] || 0;
-                return sum + st * b.odds;
-              }, 0) * 100,
-            ) / 100
-          : Math.round(totalStake * totalOdds * 100) / 100,
-      status: "PENDING",
-      timestamp: Date.now(),
-      selectionStakes,
-    };
-
-    const nextBalance = debited;
     const nextProfile: Profile = {
       ...userProfile,
-      balance: nextBalance,
-      tickets: [...userProfile.tickets, newTicket],
+      balance: debited,
+      tickets: [...userProfile.tickets, ...newTickets],
     };
 
     setUserProfile(nextProfile);
@@ -211,6 +179,50 @@ export function useBetting(deps: UseBettingDeps) {
       tickets: nextTickets,
     };
     addToast({ type: "cashout", title: "💸 Cashed Out", message: `$${offerAmount.toFixed(2)} added to wallet`, duration: 4000 });
+    setUserProfile(nextProfile);
+    persist(nextProfile);
+  };
+
+  /**
+   * Auto-settles any PENDING ticket whose fixtures have all reached FT, without
+   * waiting for a round advance. This prevents tickets from sitting in a
+   * pending/"suspended" limbo after their matches finish. Returns silently when
+   * nothing is settleable so it is safe to call from an effect on every tick.
+   */
+  const settleFinishedTickets = () => {
+    if (!userProfile) return;
+    const ftFixtures = fixtures.filter((f) => f.status === "FT");
+    if (ftFixtures.length === 0) return;
+
+    const settleable = userProfile.tickets.some(
+      (t) =>
+        t.status === "PENDING" &&
+        t.selections.every((sel) =>
+          ftFixtures.some((f) => f.id === sel.fixtureId),
+        ),
+    );
+    if (!settleable) return;
+
+    const { finalTickets, totalWinPayoutSum } = settlePendingTickets(
+      userProfile.tickets,
+      ftFixtures,
+    );
+
+    finalTickets.forEach((ticket, idx) => {
+      if (userProfile.tickets[idx]?.status === "PENDING" && ticket.status !== "PENDING") {
+        if (ticket.status === "WON") {
+          addToast({ type: "win", title: "🏆 Ticket Won!", message: `+$${(ticket.settledPayout ?? ticket.potentialPayout).toFixed(2)} payout`, duration: 5000 });
+        } else if (ticket.status === "LOST") {
+          addToast({ type: "loss", title: "Ticket Lost", message: `-$${ticket.stake.toFixed(2)} stake lost`, duration: 3000 });
+        }
+      }
+    });
+
+    const nextProfile: Profile = {
+      ...userProfile,
+      balance: credit(userProfile.balance, totalWinPayoutSum),
+      tickets: finalTickets,
+    };
     setUserProfile(nextProfile);
     persist(nextProfile);
   };
@@ -262,6 +274,7 @@ export function useBetting(deps: UseBettingDeps) {
     handleClearAllSelections,
     handlePlaceBet,
     handleCashOut,
+    settleFinishedTickets,
     handlePlaceBetBuilder,
   };
 }

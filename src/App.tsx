@@ -93,7 +93,7 @@ export default function App() {
   const { userProfile, setUserProfile, persist } = profileHook;
 
   const { transferListings, setTransferListings, userBids, setUserBids,
-    transferToast, handlePlaceUserBid, handleWithdrawBid, showTransferToast } =
+    transferToast, handlePlaceUserBid, handleWithdrawBid, handleRefreshListings, showTransferToast } =
     useTransferMarket({ userProfile, setUserProfile, persist, teams });
 
   const simHook = useSimulation({
@@ -110,6 +110,14 @@ export default function App() {
     gameMode, activeSlot, setCollapsedSlip,
   });
   const { selectedBets, setSelectedBets } = bettingHook;
+
+  // ─── Auto-settle tickets when their matches finish ─────────────────
+  // Tickets should never sit pending/"suspended" after full time — settle
+  // any whose fixtures have all reached FT without waiting for a round advance.
+  useEffect(() => {
+    bettingHook.settleFinishedTickets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixtures]);
 
   // ─── Global entity modal events ────────────────────────────────────
   useEffect(() => {
@@ -211,8 +219,26 @@ export default function App() {
   // ─── Reset / new campaign helpers ──────────────────────────────────
   const handleResetAndGenerate = (keepRecords = false) => {
     if (!gameMode) return;
-    const { teams: newTeams, fixtures: newFixtures } =
+    let { teams: newTeams, fixtures: newFixtures } =
       gameMode === "TOURNAMENT" ? initializeNewTournament() : initializeNewLeague();
+
+    // When continuing (keepRecords), permanent history must survive the new
+    // tournament/season: club ownership — which holds the trophy cabinet — and
+    // each team's season-by-season record history are carried onto the freshly
+    // generated teams by matching team id. Without this the trophy room and
+    // records are wiped every rollover.
+    if (keepRecords) {
+      newTeams = newTeams.map((nt) => {
+        const prev = teams.find((t) => t.id === nt.id);
+        if (!prev) return nt;
+        return {
+          ...nt,
+          ...(prev.ownership ? { ownership: prev.ownership } : {}),
+          ...(prev.seasonHistory ? { seasonHistory: prev.seasonHistory } : {}),
+        };
+      });
+    }
+
     const initialProfile: Profile = {
       username: userProfile?.username || "Tobi",
       balance: keepRecords ? (userProfile?.balance ?? 1000) : 1000,
@@ -220,6 +246,15 @@ export default function App() {
       tickets: keepRecords ? (userProfile?.tickets ?? []) : [],
       currentRoundIndex: 0,
       createdTime: keepRecords ? (userProfile?.createdTime ?? Date.now()) : Date.now(),
+      // Permanent player-level records also persist across rollovers.
+      ...(keepRecords ? {
+        ownedTeamId: userProfile?.ownedTeamId,
+        ownedTeamIds: userProfile?.ownedTeamIds,
+        purchasedItems: userProfile?.purchasedItems,
+        bankrollHistory: userProfile?.bankrollHistory,
+        betBuilderTickets: userProfile?.betBuilderTickets,
+        challenges: userProfile?.challenges,
+      } : {}),
     };
     const ts = [...INITIAL_TIPSTERS];
     const tk = generateTipsterBetsForRound(ts, newFixtures, newTeams);
@@ -236,6 +271,7 @@ export default function App() {
     setTransferListings([]);
     setUserBids([]);
     setActiveTab("fixtures");
+    localStorage.removeItem("fs_social_posts"); // clear stale live-chat banter
     if (simTimerRef.current) clearInterval(simTimerRef.current);
   };
 
@@ -272,6 +308,7 @@ export default function App() {
     setTransferListings([]);
     setUserBids([]);
     setActiveTab("fixtures");
+    localStorage.removeItem("fs_social_posts"); // fresh live-chat for a new campaign
     if (simTimerRef.current) clearInterval(simTimerRef.current);
   };
 
@@ -486,7 +523,7 @@ export default function App() {
               ? <LeagueStandings teams={teams} fixtures={fixtures} currentRoundIndex={userProfile.currentRoundIndex} />
               : <TournamentBracket fixtures={fixtures} teams={teams} />
           )}
-          {activeTab === "career" && <CareerStats career={careerProfile} />}
+          {activeTab === "career" && <CareerStats career={careerProfile} liveProfile={userProfile} gameMode={gameMode} />}
           {activeTab === "leaderboard" && (
             <Leaderboard
               tipsters={tipsters} userBalance={userProfile.balance}
@@ -509,6 +546,9 @@ export default function App() {
               onLiquidate={profileHook.handleLiquidateVIPItem}
               teams={teams}
               ownedTeamId={userProfile.ownedTeamId}
+              ownedTeamIds={userProfile.ownedTeamIds}
+              onRenameStadium={profileHook.handleRenameStadium}
+              onBoostRatings={profileHook.handleBoostClubRatings}
             />
           )}
           {activeTab === "myclub" && userProfile.ownedTeamId && (
@@ -538,6 +578,7 @@ export default function App() {
               userBids={userBids}
               onPlaceBid={handlePlaceUserBid}
               onWithdrawBid={handleWithdrawBid}
+              onRefresh={() => handleRefreshListings(teams, userProfile.currentRoundIndex)}
             />
           )}
           {activeTab === "feed" && (
