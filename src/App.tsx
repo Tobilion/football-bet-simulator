@@ -11,6 +11,8 @@ import {
 import { Header } from "./components/Header";
 import { BettingSlip } from "./components/BettingSlip";
 import { LiveMatches } from "./components/LiveMatches";
+import { FootysimMatchViewer } from "./components/FootysimMatchViewer";
+import type { FootysimMatch } from "./engine/footysimBridge";
 import { FixturesOdds } from "./components/FixturesOdds";
 import { MyBets } from "./components/MyBets";
 import { TeamsList } from "./components/TeamsList";
@@ -37,8 +39,15 @@ import {
   ROUND_LABELS,
 } from "./data/tournament";
 import { INITIAL_TIPSTERS, generateTipsterBetsForRound } from "./data/tipsters";
-import { getKeysForMode, persistStateToCache, isSaveCompatible } from "./utils/storage";
-import { generateTransferListings, applyUserWinsToOwnedTeam } from "./engine/transferEngine";
+import {
+  getKeysForMode,
+  persistStateToCache,
+  isSaveCompatible,
+} from "./utils/storage";
+import {
+  generateTransferListings,
+  applyUserWinsToOwnedTeam,
+} from "./engine/transferEngine";
 import { useProfile } from "./hooks/useProfile";
 import { useSimulation } from "./hooks/useSimulation";
 import { useBetting } from "./hooks/useBetting";
@@ -52,17 +61,24 @@ import { CareerProfile } from "./types";
 import { ToastContainer } from "./components/ui/Toast";
 import { OnboardingOverlay } from "./components/OnboardingOverlay";
 
+import SiteFooter from "./components/ui/site-footer";
+// ...
+<SiteFooter />;
 
 export default function App() {
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(() =>
-    localStorage.getItem("cubet_onboarded") !== "true"
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(
+    () => localStorage.getItem("cubet_onboarded") !== "true",
   );
   const [activeSlot, setActiveSlot] = useState<number>(() =>
     parseInt(localStorage.getItem("fs_selected_game_slot") || "1"),
   );
   const [dummyUpdateSlot, setDummyUpdateSlot] = useState(0);
-  const [gameMode, setGameMode] = useState<"TOURNAMENT" | "LEAGUE" | null>(() =>
-    localStorage.getItem("fs_selected_game_mode") as "TOURNAMENT" | "LEAGUE" | null,
+  const [gameMode, setGameMode] = useState<"TOURNAMENT" | "LEAGUE" | null>(
+    () =>
+      localStorage.getItem("fs_selected_game_mode") as
+        | "TOURNAMENT"
+        | "LEAGUE"
+        | null,
   );
 
   const [activeTab, setActiveTab] = useState("fixtures");
@@ -71,43 +87,89 @@ export default function App() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [ownerRevenueReport, setOwnerRevenueReport] = useState<{
     revenue: number;
-    fixtures: { fixtureId: string; baseIncome: number; bonus: number; result: "WIN" | "DRAW" | "LOSS"; scoreline: string }[];
+    fixtures: {
+      fixtureId: string;
+      baseIncome: number;
+      bonus: number;
+      result: "WIN" | "DRAW" | "LOSS";
+      scoreline: string;
+    }[];
     teamName: string;
   } | null>(null);
-  const [betBuilderFixtureId, setBetBuilderFixtureId] = useState<string | null>(null);
-  const [globalEntity, setGlobalEntity] = useState<{ type: "team" | "player"; id: string } | null>(null);
-  const [showHighlightsFixture, setShowHighlightsFixture] = useState<Fixture | null>(null);
-  const [careerProfile, setCareerProfile] = useState<CareerProfile>(() => loadCareerProfile());
-  const [selectedFixtureId, setSelectedFixtureId] = useState<string>(() =>
-    localStorage.getItem("lastSelectedFixtureId") || "",
+  const [betBuilderFixtureId, setBetBuilderFixtureId] = useState<string | null>(
+    null,
+  );
+  const [globalEntity, setGlobalEntity] = useState<{
+    type: "team" | "player";
+    id: string;
+  } | null>(null);
+  const [showHighlightsFixture, setShowHighlightsFixture] =
+    useState<Fixture | null>(null);
+  const [careerProfile, setCareerProfile] = useState<CareerProfile>(() =>
+    loadCareerProfile(),
+  );
+  const [selectedFixtureId, setSelectedFixtureId] = useState<string>(
+    () => localStorage.getItem("lastSelectedFixtureId") || "",
   );
 
   const [teams, setTeams] = useState<Team[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [tipsters, setTipsters] = useState<Tipster[]>([]);
-  const [tipsterTickets, setTipsterTickets] = useState<{ [id: string]: BetTicket }>({});
+  const [tipsterTickets, setTipsterTickets] = useState<{
+    [id: string]: BetTicket;
+  }>({});
 
   const profileHook = useProfile({
-    gameMode, activeSlot, teams, setTeams, fixtures, tipsters, tipsterTickets,
+    gameMode,
+    activeSlot,
+    teams,
+    setTeams,
+    fixtures,
+    tipsters,
+    tipsterTickets,
   });
   const { userProfile, setUserProfile, persist } = profileHook;
 
-  const { transferListings, setTransferListings, userBids, setUserBids,
-    transferToast, handlePlaceUserBid, handleWithdrawBid, handleRefreshListings, showTransferToast } =
-    useTransferMarket({ userProfile, setUserProfile, persist, teams });
+  const {
+    transferListings,
+    setTransferListings,
+    userBids,
+    setUserBids,
+    transferToast,
+    handlePlaceUserBid,
+    handleWithdrawBid,
+    handleRefreshListings,
+    showTransferToast,
+  } = useTransferMarket({ userProfile, setUserProfile, persist, teams });
 
   const simHook = useSimulation({
-    teams, userProfile, gameMode, activeSlot, fixtures, setFixtures, setActiveTab,
+    teams,
+    userProfile,
+    gameMode,
+    activeSlot,
+    fixtures,
+    setFixtures,
+    setActiveTab,
   });
-  const { isSimulating, setIsSimulating, ticks, setTicks, simTimerRef } = simHook;
+  const { isSimulating, setIsSimulating, ticks, setTicks, simTimerRef } =
+    simHook;
 
   const challengesHook = useChallenges({
-    userProfile, setUserProfile, persist,
+    userProfile,
+    setUserProfile,
+    persist,
   });
 
   const bettingHook = useBetting({
-    userProfile, setUserProfile, fixtures, teams, tipsters, tipsterTickets,
-    gameMode, activeSlot, setCollapsedSlip,
+    userProfile,
+    setUserProfile,
+    fixtures,
+    teams,
+    tipsters,
+    tipsterTickets,
+    gameMode,
+    activeSlot,
+    setCollapsedSlip,
   });
   const { selectedBets, setSelectedBets } = bettingHook;
 
@@ -141,11 +203,12 @@ export default function App() {
     const handleOpenHighlights = (e: Event) => {
       const ev = e as CustomEvent<{ fixtureId: string }>;
       if (!ev.detail) return;
-      const fx = fixtures.find(f => f.id === ev.detail.fixtureId);
+      const fx = fixtures.find((f) => f.id === ev.detail.fixtureId);
       if (fx) setShowHighlightsFixture(fx);
     };
     window.addEventListener("open-highlights", handleOpenHighlights);
-    return () => window.removeEventListener("open-highlights", handleOpenHighlights);
+    return () =>
+      window.removeEventListener("open-highlights", handleOpenHighlights);
   }, [fixtures]);
 
   // Reload career stats whenever a season concludes
@@ -154,7 +217,8 @@ export default function App() {
   }, [showWinnerCelebration]);
 
   useEffect(() => {
-    if (selectedFixtureId) localStorage.setItem("lastSelectedFixtureId", selectedFixtureId);
+    if (selectedFixtureId)
+      localStorage.setItem("lastSelectedFixtureId", selectedFixtureId);
   }, [selectedFixtureId]);
 
   // ─── Load / initialise game state ──────────────────────────────────
@@ -180,24 +244,43 @@ export default function App() {
         setFixtures(parsedFixtures);
         setTipsters(parsedTipsters);
         setTipsterTickets(parsedTickets);
-        const activeRound = parsedFixtures.filter(f => f.roundIndex === parsedProfile.currentRoundIndex);
-        const live = activeRound.filter(f => f.status === "LIVE");
-        if (live.length > 0) { setTicks(live[0].elapsedTicks); setActiveTab("live"); }
-        else if (activeRound.length > 0 && activeRound.every(f => f.status === "FT")) { setTicks(15); setActiveTab("live"); }
-        else { setTicks(0); setActiveTab("fixtures"); }
-      } catch { handleResetAndGenerate(); }
-    } else { handleResetAndGenerate(); }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+        const activeRound = parsedFixtures.filter(
+          (f) => f.roundIndex === parsedProfile.currentRoundIndex,
+        );
+        const live = activeRound.filter((f) => f.status === "LIVE");
+        if (live.length > 0) {
+          setTicks(live[0].elapsedTicks);
+          setActiveTab("live");
+        } else if (
+          activeRound.length > 0 &&
+          activeRound.every((f) => f.status === "FT")
+        ) {
+          setTicks(15);
+          setActiveTab("live");
+        } else {
+          setTicks(0);
+          setActiveTab("fixtures");
+        }
+      } catch {
+        handleResetAndGenerate();
+      }
+    } else {
+      handleResetAndGenerate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameMode]);
 
   // Sync selectedFixtureId to valid fixture
   useEffect(() => {
     if (!userProfile || fixtures.length === 0) return;
-    const roundFixtures = fixtures.filter(f => f.roundIndex === userProfile.currentRoundIndex);
+    const roundFixtures = fixtures.filter(
+      (f) => f.roundIndex === userProfile.currentRoundIndex,
+    );
     if (roundFixtures.length === 0) return;
-    const isValid = roundFixtures.some(f => f.id === selectedFixtureId);
+    const isValid = roundFixtures.some((f) => f.id === selectedFixtureId);
     if (!isValid) {
-      const first = roundFixtures.find(f => f.status !== "FT") || roundFixtures[0];
+      const first =
+        roundFixtures.find((f) => f.status !== "FT") || roundFixtures[0];
       setSelectedFixtureId(first.id);
     }
   }, [userProfile?.currentRoundIndex, fixtures, selectedFixtureId]);
@@ -206,21 +289,30 @@ export default function App() {
   useEffect(() => {
     if (!userProfile) return;
     const history = userProfile.bankrollHistory || [];
-    const lastBal = history.length > 0 ? history[history.length - 1].balance : null;
+    const lastBal =
+      history.length > 0 ? history[history.length - 1].balance : null;
     if (lastBal === null || Math.abs(userProfile.balance - lastBal) > 0.01) {
-      setUserProfile(prev => {
+      setUserProfile((prev) => {
         if (!prev) return prev;
-        return { ...prev, bankrollHistory: [...(prev.bankrollHistory || []), { timestamp: Date.now(), balance: prev.balance, detail: "Update" }] };
+        return {
+          ...prev,
+          bankrollHistory: [
+            ...(prev.bankrollHistory || []),
+            { timestamp: Date.now(), balance: prev.balance, detail: "Update" },
+          ],
+        };
       });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userProfile?.balance]);
 
   // ─── Reset / new campaign helpers ──────────────────────────────────
   const handleResetAndGenerate = (keepRecords = false) => {
     if (!gameMode) return;
     let { teams: newTeams, fixtures: newFixtures } =
-      gameMode === "TOURNAMENT" ? initializeNewTournament() : initializeNewLeague();
+      gameMode === "TOURNAMENT"
+        ? initializeNewTournament()
+        : initializeNewLeague();
 
     // When continuing (keepRecords), permanent history must survive the new
     // tournament/season: club ownership — which holds the trophy cabinet — and
@@ -245,20 +337,32 @@ export default function App() {
       netProfit: keepRecords ? (userProfile?.netProfit ?? 0) : 0,
       tickets: keepRecords ? (userProfile?.tickets ?? []) : [],
       currentRoundIndex: 0,
-      createdTime: keepRecords ? (userProfile?.createdTime ?? Date.now()) : Date.now(),
+      createdTime: keepRecords
+        ? (userProfile?.createdTime ?? Date.now())
+        : Date.now(),
       // Permanent player-level records also persist across rollovers.
-      ...(keepRecords ? {
-        ownedTeamId: userProfile?.ownedTeamId,
-        ownedTeamIds: userProfile?.ownedTeamIds,
-        purchasedItems: userProfile?.purchasedItems,
-        bankrollHistory: userProfile?.bankrollHistory,
-        betBuilderTickets: userProfile?.betBuilderTickets,
-        challenges: userProfile?.challenges,
-      } : {}),
+      ...(keepRecords
+        ? {
+            ownedTeamId: userProfile?.ownedTeamId,
+            ownedTeamIds: userProfile?.ownedTeamIds,
+            purchasedItems: userProfile?.purchasedItems,
+            bankrollHistory: userProfile?.bankrollHistory,
+            betBuilderTickets: userProfile?.betBuilderTickets,
+            challenges: userProfile?.challenges,
+          }
+        : {}),
     };
     const ts = [...INITIAL_TIPSTERS];
     const tk = generateTipsterBetsForRound(ts, newFixtures, newTeams);
-    persistStateToCache(gameMode, activeSlot, initialProfile, newTeams, newFixtures, ts, tk);
+    persistStateToCache(
+      gameMode,
+      activeSlot,
+      initialProfile,
+      newTeams,
+      newFixtures,
+      ts,
+      tk,
+    );
     setUserProfile(initialProfile);
     setTeams(newTeams);
     setFixtures(newFixtures);
@@ -285,7 +389,14 @@ export default function App() {
     localStorage.setItem("fs_selected_game_slot", String(slot));
     const { teams: newTeams, fixtures: newFixtures } =
       mode === "TOURNAMENT" ? initializeNewTournament() : initializeNewLeague();
-    const initialProfile: Profile = { username, balance: startingBalance, netProfit: 0, tickets: [], currentRoundIndex: 0, createdTime: Date.now() };
+    const initialProfile: Profile = {
+      username,
+      balance: startingBalance,
+      netProfit: 0,
+      tickets: [],
+      currentRoundIndex: 0,
+      createdTime: Date.now(),
+    };
     const ts = [...INITIAL_TIPSTERS];
     const tk = generateTipsterBetsForRound(ts, newFixtures, newTeams);
     const keys = getKeysForMode(mode, slot);
@@ -326,9 +437,13 @@ export default function App() {
   // ─── Generate transfer listings at round start ──────────────────────
   useEffect(() => {
     if (!userProfile || teams.length === 0) return;
-    const currentListings = generateTransferListings(teams, userProfile.currentRoundIndex, transferListings);
+    const currentListings = generateTransferListings(
+      teams,
+      userProfile.currentRoundIndex,
+      transferListings,
+    );
     setTransferListings(currentListings);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userProfile?.currentRoundIndex]);
 
   // ─── Apply user transfer wins to owned team ─────────────────────────
@@ -338,31 +453,102 @@ export default function App() {
     ownedTeamId: string,
     pricePaid: number,
   ) => {
-    const updated = applyUserWinsToOwnedTeam(currentTeams, resolvedListings, ownedTeamId);
+    const updated = applyUserWinsToOwnedTeam(
+      currentTeams,
+      resolvedListings,
+      ownedTeamId,
+    );
     setTeams(updated);
     if (userProfile) {
-      const nextProfile = { ...userProfile, balance: userProfile.balance - pricePaid };
+      const nextProfile = {
+        ...userProfile,
+        balance: userProfile.balance - pricePaid,
+      };
       setUserProfile(nextProfile);
       persist(nextProfile, updated);
     }
   };
   void applyTransferWinsToTeam;
 
-
   // ─── Bet Builder placement ────────────────────────────────────────
-  const handleBBPlace = (sels: BetBuilderSelection[], stake: number, odds: number) => {
+  const handleBBPlace = (
+    sels: BetBuilderSelection[],
+    stake: number,
+    odds: number,
+  ) => {
     if (!betBuilderFixtureId) return;
-    if (bettingHook.handlePlaceBetBuilder(betBuilderFixtureId, sels, stake, odds)) {
+    if (
+      bettingHook.handlePlaceBetBuilder(betBuilderFixtureId, sels, stake, odds)
+    ) {
       setBetBuilderFixtureId(null);
     }
   };
 
+  // Brief branded loading splash shown on EVERY app open.
+  const [booting, setBooting] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setBooting(false), 1600);
+    return () => clearTimeout(t);
+  }, []);
+
+  // 2D spatial-engine (footysim) match viewer state + result apply.
+  const [footysim2DId, setFootysim2DId] = useState<string | null>(null);
+  const applyFootysimResult = (fixtureId: string, m: FootysimMatch) => {
+    setFixtures((prev) => {
+      const next = prev.map((f) =>
+        f.id === fixtureId
+          ? {
+              ...f,
+              status: "FT" as const,
+              currentMinute: 90,
+              elapsedTicks: 15,
+              homeScore: m.homeScore,
+              awayScore: m.awayScore,
+              ...(m.penaltyScore ? { penaltyScore: m.penaltyScore } : {}),
+              stats: m.stats,
+              events: [...(f.events || []), ...m.events],
+            }
+          : f,
+      );
+      if (gameMode) {
+        try {
+          localStorage.setItem(
+            getKeysForMode(gameMode, activeSlot).fixtures,
+            JSON.stringify(next),
+          );
+        } catch {
+          /* ignore */
+        }
+      }
+      return next;
+    });
+    // Note: does NOT close the viewer — the modal shows the full-time summary and
+    // the user closes it via "Back to Live" when ready.
+  };
+
   const handleAdvanceRound = buildHandleAdvanceRound({
-    gameMode, activeSlot, userProfile, teams, fixtures, tipsters, tipsterTickets,
-    isSimulating, transferListings, userBids,
-    setUserProfile, setTeams, setFixtures, setTipsters, setTipsterTickets,
-    setSelectedBets, setTicks, setActiveTab, setShowWinnerCelebration,
-    setOwnerRevenueReport, setTransferListings, setUserBids,
+    gameMode,
+    activeSlot,
+    userProfile,
+    teams,
+    fixtures,
+    tipsters,
+    tipsterTickets,
+    isSimulating,
+    transferListings,
+    userBids,
+    setUserProfile,
+    setTeams,
+    setFixtures,
+    setTipsters,
+    setTipsterTickets,
+    setSelectedBets,
+    setTicks,
+    setActiveTab,
+    setShowWinnerCelebration,
+    setOwnerRevenueReport,
+    setTransferListings,
+    setUserBids,
     onTransferToast: showTransferToast,
   });
 
@@ -380,39 +566,70 @@ export default function App() {
       });
       return { name: sorted[0].name, crest: sorted[0] };
     }
-    const fin = fixtures.find(f => f.roundIndex === 4 && f.status === "FT") || fixtures.find(f => f.roundIndex === 4);
+    const fin =
+      fixtures.find((f) => f.roundIndex === 4 && f.status === "FT") ||
+      fixtures.find((f) => f.roundIndex === 4);
     if (!fin) return { name: "Champion", crest: teams[0] };
-    const winnerId = fin.homeScore > fin.awayScore ? fin.homeTeamId : fin.awayTeamId;
-    const club = teams.find(t => t.id === winnerId) || teams[0];
+    const winnerId =
+      fin.homeScore > fin.awayScore ? fin.homeTeamId : fin.awayTeamId;
+    const club = teams.find((t) => t.id === winnerId) || teams[0];
     return { name: club.name, crest: club };
   };
 
   const currentRoundLabel =
     gameMode === "LEAGUE"
       ? `Matchday ${(userProfile?.currentRoundIndex ?? 0) + 1}`
-      : ROUND_LABELS[userProfile?.currentRoundIndex || 0] || "Session Concluded";
+      : ROUND_LABELS[userProfile?.currentRoundIndex || 0] ||
+        "Session Concluded";
 
   // ─── Welcome screen ─────────────────────────────────────────────────
+  if (booting) {
+    return (
+      <div className="fixed inset-0 z-[999] flex flex-col items-center justify-center gap-5 bg-[#05070a] text-slate-100">
+        <div className="text-3xl font-black tracking-widest">
+          <span className="text-emerald-400">CU</span> BET
+        </div>
+        <div className="h-1 w-40 overflow-hidden rounded-full bg-white/10">
+          <div className="h-full w-1/2 rounded-full bg-emerald-500 animate-[loadbar_1.2s_ease-in-out_infinite]" />
+        </div>
+        <span className="text-[10px] font-mono uppercase tracking-[0.3em] text-slate-500">
+          Loading matchday…
+        </span>
+        <style>{`@keyframes loadbar{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}`}</style>
+      </div>
+    );
+  }
+
   if (!gameMode || !userProfile) {
     const savedTournaments = [
-      localStorage.getItem("fs_profile_v3_tournament_slot1") !== null || localStorage.getItem("fs_profile_v3_tournament") !== null,
+      localStorage.getItem("fs_profile_v3_tournament_slot1") !== null ||
+        localStorage.getItem("fs_profile_v3_tournament") !== null,
       localStorage.getItem("fs_profile_v3_tournament_slot2") !== null,
       localStorage.getItem("fs_profile_v3_tournament_slot3") !== null,
     ];
     const savedLeagues = [
-      localStorage.getItem("fs_profile_v3_league_slot1") !== null || localStorage.getItem("fs_profile_v3_league") !== null,
+      localStorage.getItem("fs_profile_v3_league_slot1") !== null ||
+        localStorage.getItem("fs_profile_v3_league") !== null,
       localStorage.getItem("fs_profile_v3_league_slot2") !== null,
       localStorage.getItem("fs_profile_v3_league_slot3") !== null,
     ];
 
-    const handleResumeCampaign = (mode: "TOURNAMENT" | "LEAGUE", slot: number) => {
+    const handleResumeCampaign = (
+      mode: "TOURNAMENT" | "LEAGUE",
+      slot: number,
+    ) => {
       const keys = getKeysForMode(mode, slot);
       if (slot === 1 && localStorage.getItem(keys.profile) === null) {
         const m = mode.toLowerCase();
-        ["profile","teams","fixtures","tipsters","tipsterTickets"].forEach((k) => {
-          const old = localStorage.getItem(`fs_${k === "tipsterTickets" ? "tipster_tickets" : k}_v3_${m}`);
-          if (old) localStorage.setItem((keys as Record<string, string>)[k], old);
-        });
+        ["profile", "teams", "fixtures", "tipsters", "tipsterTickets"].forEach(
+          (k) => {
+            const old = localStorage.getItem(
+              `fs_${k === "tipsterTickets" ? "tipster_tickets" : k}_v3_${m}`,
+            );
+            if (old)
+              localStorage.setItem((keys as Record<string, string>)[k], old);
+          },
+        );
       }
       setActiveSlot(slot);
       localStorage.setItem("fs_selected_game_slot", String(slot));
@@ -421,21 +638,23 @@ export default function App() {
 
     const handleDeleteSave = (mode: "TOURNAMENT" | "LEAGUE", slot: number) => {
       const keys = getKeysForMode(mode, slot);
-      Object.values(keys).forEach(k => localStorage.removeItem(k));
+      Object.values(keys).forEach((k) => localStorage.removeItem(k));
       if (slot === 1) {
         const m = mode.toLowerCase();
-        ["profile","teams","fixtures","tipsters","tipster_tickets"].forEach((k) =>
-          localStorage.removeItem(`fs_${k}_v3_${m}`)
+        ["profile", "teams", "fixtures", "tipsters", "tipster_tickets"].forEach(
+          (k) => localStorage.removeItem(`fs_${k}_v3_${m}`),
         );
       }
-      setDummyUpdateSlot(p => p + 1);
+      setDummyUpdateSlot((p) => p + 1);
     };
 
     void dummyUpdateSlot;
 
     return (
       <>
-        {showOnboarding && <OnboardingOverlay onEnter={() => setShowOnboarding(false)} />}
+        {showOnboarding && (
+          <OnboardingOverlay onEnter={() => setShowOnboarding(false)} />
+        )}
         <WelcomeScreen
           onKickoff={handleStartNewCampaign}
           savedTournaments={savedTournaments}
@@ -451,217 +670,294 @@ export default function App() {
 
   return (
     <>
-      {showOnboarding && <OnboardingOverlay onEnter={() => setShowOnboarding(false)} />}
-      <div id="app" className="h-screen w-screen bg-gradient-to-br from-[#0b0e14] via-[#05070a] to-[#121620] text-slate-100 flex flex-col overflow-hidden font-sans animate-fade-in">
-      <Header
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        username={userProfile.username}
-        balance={userProfile.balance}
-        addFunds={() => setShowWalletModal(true)}
-        resetTournament={handleResetAndGenerate}
-        currentRoundLabel={currentRoundLabel}
-        gameMode={gameMode}
-        exitToMenu={exitToMenu}
-        hasOwnedClub={!!userProfile.ownedTeamId}
-      />
+      {showOnboarding && (
+        <OnboardingOverlay onEnter={() => setShowOnboarding(false)} />
+      )}
+      <div
+        id="app"
+        className="h-screen w-screen bg-gradient-to-br from-[#0b0e14] via-[#05070a] to-[#121620] text-slate-100 flex flex-col overflow-hidden font-sans animate-fade-in"
+      >
+        <Header
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          username={userProfile.username}
+          balance={userProfile.balance}
+          addFunds={() => setShowWalletModal(true)}
+          resetTournament={handleResetAndGenerate}
+          currentRoundLabel={currentRoundLabel}
+          gameMode={gameMode}
+          exitToMenu={exitToMenu}
+          hasOwnedClub={!!userProfile.ownedTeamId}
+        />
 
-      <div id="workspace-split" className="flex flex-1 min-h-0 overflow-hidden relative">
-        <main className="flex-1 min-h-0 flex flex-col overflow-hidden bg-transparent">
-          {activeTab === "live" && (
-            <LiveMatches
-              fixtures={fixtures} teams={teams}
-              roundIndex={userProfile.currentRoundIndex}
-              currentRoundLabel={currentRoundLabel}
-              isSimulating={isSimulating}
-              onStartSimulation={simHook.handleStartSimulation}
-              onPauseSimulation={simHook.handlePauseSimulation}
-              onSimulateTick={simHook.handleSimulateTick}
-              onSimulateInstant={simHook.handleSimulateInstant}
-              onSimulateRemainingInstant={simHook.handleSimulateRemainingInstant}
-              onAdvanceRound={handleAdvanceRound}
-              ticks={ticks} selectedFixtureId={selectedFixtureId}
-              setSelectedFixtureId={setSelectedFixtureId}
-              selectedBets={selectedBets}
-              onAddBetSelection={bettingHook.handleAddBetSelection}
-              onRemoveSelection={bettingHook.handleRemoveSelection}
-              ownedTeamId={userProfile.ownedTeamId}
-            />
-          )}
-          {activeTab === "fixtures" && (
-            <FixturesOdds
-              fixtures={fixtures} teams={teams}
-              roundIndex={userProfile.currentRoundIndex}
-              currentRoundLabel={currentRoundLabel}
-              selectedBets={selectedBets}
-              onAddBetSelection={bettingHook.handleAddBetSelection}
-              onRemoveSelection={bettingHook.handleRemoveSelection}
-              onOpenBetBuilder={setBetBuilderFixtureId}
-            />
-          )}
-          {activeTab === "bets" && (
-            <MyBets
-              tickets={userProfile.tickets} fixtures={fixtures} teams={teams}
-              balance={userProfile.balance} onCashOut={bettingHook.handleCashOut}
-              betBuilderTickets={userProfile.betBuilderTickets || []}
-              challengesSlot={
-                <Challenges
-                  challenges={challengesHook.activeChallenges}
+        <div
+          id="workspace-split"
+          className="flex flex-1 min-h-0 overflow-hidden relative"
+        >
+          <main className="flex-1 min-h-0 flex flex-col overflow-hidden bg-transparent">
+            {activeTab === "live" && (
+              <LiveMatches
+                fixtures={fixtures}
+                teams={teams}
+                roundIndex={userProfile.currentRoundIndex}
+                currentRoundLabel={currentRoundLabel}
+                isSimulating={isSimulating}
+                onStartSimulation={simHook.handleStartSimulation}
+                onPauseSimulation={simHook.handlePauseSimulation}
+                onSimulateTick={simHook.handleSimulateTick}
+                onSimulateInstant={simHook.handleSimulateInstant}
+                onSimulateRemainingInstant={
+                  simHook.handleSimulateRemainingInstant
+                }
+                onAdvanceRound={handleAdvanceRound}
+                ticks={ticks}
+                selectedFixtureId={selectedFixtureId}
+                setSelectedFixtureId={setSelectedFixtureId}
+                selectedBets={selectedBets}
+                onAddBetSelection={bettingHook.handleAddBetSelection}
+                onRemoveSelection={bettingHook.handleRemoveSelection}
+                ownedTeamId={userProfile.ownedTeamId}
+                onWatch2D={setFootysim2DId}
+              />
+            )}
+            {activeTab === "fixtures" && (
+              <FixturesOdds
+                fixtures={fixtures}
+                teams={teams}
+                roundIndex={userProfile.currentRoundIndex}
+                currentRoundLabel={currentRoundLabel}
+                selectedBets={selectedBets}
+                onAddBetSelection={bettingHook.handleAddBetSelection}
+                onRemoveSelection={bettingHook.handleRemoveSelection}
+                onOpenBetBuilder={setBetBuilderFixtureId}
+              />
+            )}
+            {activeTab === "bets" && (
+              <MyBets
+                tickets={userProfile.tickets}
+                fixtures={fixtures}
+                teams={teams}
+                balance={userProfile.balance}
+                onCashOut={bettingHook.handleCashOut}
+                betBuilderTickets={userProfile.betBuilderTickets || []}
+                challengesSlot={
+                  <Challenges
+                    challenges={challengesHook.activeChallenges}
+                    currentRoundIndex={userProfile.currentRoundIndex}
+                    onClaim={challengesHook.handleClaimChallenge}
+                    onDismiss={challengesHook.handleDismissChallenge}
+                  />
+                }
+              />
+            )}
+            {activeTab === "teams" && (
+              <TeamsList teams={teams} fixtures={fixtures} />
+            )}
+            {activeTab === "analytics" && (
+              <Analytics
+                teams={teams}
+                fixtures={fixtures}
+                userProfile={userProfile}
+              />
+            )}
+            {activeTab === "tournament" &&
+              (gameMode === "LEAGUE" ? (
+                <LeagueStandings
+                  teams={teams}
+                  fixtures={fixtures}
                   currentRoundIndex={userProfile.currentRoundIndex}
-                  onClaim={challengesHook.handleClaimChallenge}
-                  onDismiss={challengesHook.handleDismissChallenge}
                 />
-              }
-            />
-          )}
-          {activeTab === "teams" && <TeamsList teams={teams} fixtures={fixtures} />}
-          {activeTab === "analytics" && (
-            <Analytics teams={teams} fixtures={fixtures} userProfile={userProfile} />
-          )}
-          {activeTab === "tournament" && (
-            gameMode === "LEAGUE"
-              ? <LeagueStandings teams={teams} fixtures={fixtures} currentRoundIndex={userProfile.currentRoundIndex} />
-              : <TournamentBracket fixtures={fixtures} teams={teams} />
-          )}
-          {activeTab === "career" && <CareerStats career={careerProfile} liveProfile={userProfile} gameMode={gameMode} />}
-          {activeTab === "leaderboard" && (
-            <Leaderboard
-              tipsters={tipsters} userBalance={userProfile.balance}
-              username={userProfile.username} tickets={userProfile.tickets}
-            />
-          )}
-          {activeTab === "casino" && (
-            <CasinoSuite
-              balance={userProfile.balance}
-              onUpdateBalance={profileHook.handleUpdateBalanceCasino}
-              username={userProfile.username}
-              currentRoundIndex={userProfile.currentRoundIndex}
-            />
-          )}
-          {activeTab === "store" && (
-            <VIPStore
-              balance={userProfile.balance}
-              purchasedItems={userProfile.purchasedItems || []}
-              onPurchase={profileHook.handlePurchaseVIPItem}
-              onLiquidate={profileHook.handleLiquidateVIPItem}
-              teams={teams}
-              ownedTeamId={userProfile.ownedTeamId}
-              ownedTeamIds={userProfile.ownedTeamIds}
-              onRenameStadium={profileHook.handleRenameStadium}
-              onBoostRatings={profileHook.handleBoostClubRatings}
-            />
-          )}
-          {activeTab === "myclub" && userProfile.ownedTeamId && (
-            <ClubManager
-              ownedTeamId={userProfile.ownedTeamId}
-              ownedTeamIds={userProfile.ownedTeamIds}
-              teams={teams}
-              balance={userProfile.balance}
-              onUpdateOwnership={profileHook.handleUpdateClubOwnership}
-              onUpgradeFacility={profileHook.handleUpgradeFacility}
-              onUpdateBalance={(delta: number) => {
-                if (!userProfile) return;
-                const nextProfile = { ...userProfile, balance: Math.max(0, userProfile.balance + delta) };
-                setUserProfile(nextProfile);
-                persist(nextProfile);
-              }}
-            />
-          )}
-          {activeTab === "transfers" && userProfile.ownedTeamId && (
-            <TransferMarket
-              listings={transferListings}
-              teams={teams}
-              ownedTeamId={userProfile.ownedTeamId}
-              ownedTeamIds={userProfile.ownedTeamIds}
-              currentRoundIndex={userProfile.currentRoundIndex}
-              balance={userProfile.balance}
-              userBids={userBids}
-              onPlaceBid={handlePlaceUserBid}
-              onWithdrawBid={handleWithdrawBid}
-              onRefresh={() => handleRefreshListings(teams, userProfile.currentRoundIndex)}
-            />
-          )}
-          {activeTab === "feed" && (
-            <SocialFeed fixtures={fixtures} teams={teams} roundLabel={currentRoundLabel} />
-          )}
-        </main>
+              ) : (
+                <TournamentBracket fixtures={fixtures} teams={teams} />
+              ))}
+            {activeTab === "career" && (
+              <CareerStats
+                career={careerProfile}
+                liveProfile={userProfile}
+                gameMode={gameMode}
+              />
+            )}
+            {activeTab === "leaderboard" && (
+              <Leaderboard
+                tipsters={tipsters}
+                userBalance={userProfile.balance}
+                username={userProfile.username}
+                tickets={userProfile.tickets}
+              />
+            )}
+            {activeTab === "casino" && (
+              <CasinoSuite
+                balance={userProfile.balance}
+                onUpdateBalance={profileHook.handleUpdateBalanceCasino}
+                username={userProfile.username}
+                currentRoundIndex={userProfile.currentRoundIndex}
+              />
+            )}
+            {activeTab === "store" && (
+              <VIPStore
+                balance={userProfile.balance}
+                purchasedItems={userProfile.purchasedItems || []}
+                onPurchase={profileHook.handlePurchaseVIPItem}
+                onLiquidate={profileHook.handleLiquidateVIPItem}
+                teams={teams}
+                ownedTeamId={userProfile.ownedTeamId}
+                ownedTeamIds={userProfile.ownedTeamIds}
+                onRenameStadium={profileHook.handleRenameStadium}
+                onBoostRatings={profileHook.handleBoostClubRatings}
+              />
+            )}
+            {activeTab === "myclub" && userProfile.ownedTeamId && (
+              <ClubManager
+                ownedTeamId={userProfile.ownedTeamId}
+                ownedTeamIds={userProfile.ownedTeamIds}
+                teams={teams}
+                balance={userProfile.balance}
+                onUpdateOwnership={profileHook.handleUpdateClubOwnership}
+                onUpgradeFacility={profileHook.handleUpgradeFacility}
+                onUpdateBalance={(delta: number) => {
+                  if (!userProfile) return;
+                  const nextProfile = {
+                    ...userProfile,
+                    balance: Math.max(0, userProfile.balance + delta),
+                  };
+                  setUserProfile(nextProfile);
+                  persist(nextProfile);
+                }}
+              />
+            )}
+            {activeTab === "transfers" && userProfile.ownedTeamId && (
+              <TransferMarket
+                listings={transferListings}
+                teams={teams}
+                ownedTeamId={userProfile.ownedTeamId}
+                ownedTeamIds={userProfile.ownedTeamIds}
+                currentRoundIndex={userProfile.currentRoundIndex}
+                balance={userProfile.balance}
+                userBids={userBids}
+                onPlaceBid={handlePlaceUserBid}
+                onWithdrawBid={handleWithdrawBid}
+                onRefresh={() =>
+                  handleRefreshListings(teams, userProfile.currentRoundIndex)
+                }
+              />
+            )}
+            {activeTab === "feed" && (
+              <SocialFeed
+                fixtures={fixtures}
+                teams={teams}
+                roundLabel={currentRoundLabel}
+              />
+            )}
+          </main>
 
-        {!["casino","store","feed","myclub","transfers"].includes(activeTab) && (
-          <BettingSlip
-            selections={selectedBets} fixtures={fixtures} teams={teams}
-            currentRoundIndex={userProfile.currentRoundIndex}
-            onRemoveSelection={bettingHook.handleRemoveSelection}
-            onClearAll={bettingHook.handleClearAllSelections}
+          {!["casino", "store", "feed", "myclub", "transfers"].includes(
+            activeTab,
+          ) && (
+            <BettingSlip
+              selections={selectedBets}
+              fixtures={fixtures}
+              teams={teams}
+              currentRoundIndex={userProfile.currentRoundIndex}
+              onRemoveSelection={bettingHook.handleRemoveSelection}
+              onClearAll={bettingHook.handleClearAllSelections}
+              balance={userProfile.balance}
+              onPlaceBet={bettingHook.handlePlaceBet}
+              collapsed={collapsedSlip}
+              setCollapsed={setCollapsedSlip}
+              onAddSelections={bettingHook.handleAddMultipleSelections}
+            />
+          )}
+        </div>
+
+        {/* Transfer toast */}
+        {transferToast && (
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-amber-500 text-black text-sm font-semibold px-5 py-2.5 rounded-xl shadow-xl z-[200] animate-fade-in">
+            {transferToast}
+          </div>
+        )}
+
+        {showWalletModal && (
+          <WalletModal
             balance={userProfile.balance}
-            onPlaceBet={bettingHook.handlePlaceBet}
-            collapsed={collapsedSlip} setCollapsed={setCollapsedSlip}
-            onAddSelections={bettingHook.handleAddMultipleSelections}
+            onConfirmTransaction={profileHook.handleConfirmWalletTransaction}
+            onClose={() => setShowWalletModal(false)}
           />
         )}
-      </div>
-
-      {/* Transfer toast */}
-      {transferToast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-amber-500 text-black text-sm font-semibold px-5 py-2.5 rounded-xl shadow-xl z-[200] animate-fade-in">
-          {transferToast}
-        </div>
-      )}
-
-      {showWalletModal && (
-        <WalletModal
-          balance={userProfile.balance}
-          onConfirmTransaction={profileHook.handleConfirmWalletTransaction}
-          onClose={() => setShowWalletModal(false)}
-        />
-      )}
-      {showWinnerCelebration && (
-        <WinnerCelebrationModal
-          gameMode={gameMode}
-          balance={userProfile.balance}
-          championName={champion.name}
-          championCrest={champion.crest}
-          onClose={() => setShowWinnerCelebration(false)}
-          onResetRound={handleResetAndGenerate}
-        />
-      )}
-      {ownerRevenueReport && (
-        <OwnerRevenueModal
-          teamName={ownerRevenueReport.teamName}
-          revenue={ownerRevenueReport.revenue}
-          fixtures={ownerRevenueReport.fixtures}
-          onClose={() => setOwnerRevenueReport(null)}
-        />
-      )}
-      {globalEntity && (
-        <GlobalEntityPreviewModal
-          globalEntity={globalEntity}
-          teams={teams}
-          onClose={() => setGlobalEntity(null)}
-          onChangeEntity={(entity) => setGlobalEntity(entity)}
-          onNavigateToTeams={() => { setGlobalEntity(null); setActiveTab("teams"); }}
-        />
-      )}
-      {betBuilderFixtureId && (() => {
-        const bbFixture = fixtures.find(f => f.id === betBuilderFixtureId);
-        return bbFixture ? (
-          <BetBuilder
-            fixture={bbFixture}
-            teams={teams}
+        {showWinnerCelebration && (
+          <WinnerCelebrationModal
+            gameMode={gameMode}
             balance={userProfile.balance}
-            onPlace={handleBBPlace}
-            onClose={() => setBetBuilderFixtureId(null)}
+            championName={champion.name}
+            championCrest={champion.crest}
+            onClose={() => setShowWinnerCelebration(false)}
+            onResetRound={handleResetAndGenerate}
           />
-        ) : null;
-      })()}
-      {showHighlightsFixture && (
-        <MatchHighlightsModal
-          fixture={showHighlightsFixture}
-          teams={teams}
-          onClose={() => setShowHighlightsFixture(null)}
-        />
-      )}
-      <ToastContainer />
-    </div>
+        )}
+        {ownerRevenueReport && (
+          <OwnerRevenueModal
+            teamName={ownerRevenueReport.teamName}
+            revenue={ownerRevenueReport.revenue}
+            fixtures={ownerRevenueReport.fixtures}
+            onClose={() => setOwnerRevenueReport(null)}
+          />
+        )}
+        {globalEntity && (
+          <GlobalEntityPreviewModal
+            globalEntity={globalEntity}
+            teams={teams}
+            onClose={() => setGlobalEntity(null)}
+            onChangeEntity={(entity) => setGlobalEntity(entity)}
+            onNavigateToTeams={() => {
+              setGlobalEntity(null);
+              setActiveTab("teams");
+            }}
+          />
+        )}
+        {betBuilderFixtureId &&
+          (() => {
+            const bbFixture = fixtures.find(
+              (f) => f.id === betBuilderFixtureId,
+            );
+            return bbFixture ? (
+              <BetBuilder
+                fixture={bbFixture}
+                teams={teams}
+                balance={userProfile.balance}
+                onPlace={handleBBPlace}
+                onClose={() => setBetBuilderFixtureId(null)}
+              />
+            ) : null;
+          })()}
+        {showHighlightsFixture && (
+          <MatchHighlightsModal
+            fixture={showHighlightsFixture}
+            teams={teams}
+            onClose={() => setShowHighlightsFixture(null)}
+          />
+        )}
+        {(() => {
+          if (!footysim2DId) return null;
+          const fx = fixtures.find((f) => f.id === footysim2DId);
+          const home = fx && teams.find((t) => t.id === fx.homeTeamId);
+          const away = fx && teams.find((t) => t.id === fx.awayTeamId);
+          if (!fx || !home || !away) return null;
+          return (
+            <FootysimMatchViewer
+              homeTeam={home}
+              awayTeam={away}
+              seed={
+                (fx.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0) +
+                  userProfile.currentRoundIndex * 31) >>>
+                0
+              }
+              knockout={gameMode === "TOURNAMENT"}
+              onClose={() => setFootysim2DId(null)}
+              onApply={(m) => applyFootysimResult(fx.id, m)}
+            />
+          );
+        })()}
+        <ToastContainer />
+      </div>
     </>
   );
 }

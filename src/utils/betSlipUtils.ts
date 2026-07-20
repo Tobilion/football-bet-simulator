@@ -30,16 +30,16 @@ export function dedupeForAccumulator(selections: BetSelection[]): {
   kept: BetSelection[];
   dropped: BetSelection[];
 } {
-  const seen = new Set<string>();
+  // Keep the LAST pick of each mutually-exclusive group so that choosing a new
+  // outcome (e.g. tapping Away after Home) SWITCHES to it rather than being
+  // silently rejected. Original order is otherwise preserved.
+  const lastIndex = new Map<string, number>();
+  selections.forEach((sel, i) => lastIndex.set(marketGroupKey(sel), i));
   const kept: BetSelection[] = [];
   const dropped: BetSelection[] = [];
-  for (const sel of selections) {
-    const key = marketGroupKey(sel);
-    if (seen.has(key)) dropped.push(sel);
-    else {
-      seen.add(key);
-      kept.push(sel);
-    }
-  }
+  selections.forEach((sel, i) => {
+    if (lastIndex.get(marketGroupKey(sel)) === i) kept.push(sel);
+    else dropped.push(sel);
+  });
   return { kept, dropped };
 }

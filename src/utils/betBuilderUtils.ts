@@ -53,23 +53,16 @@ export function settleBetBuilderTicket(
 }
 
 /**
- * Combined accumulator odds with same-game-multi pricing:
- * selections on the same fixture are combined with the correlation
- * discount (7% per extra leg), then fixture groups multiply together.
+ * Combined accumulator odds = the straight product of every leg's odds, exactly
+ * as a standard accumulator pays (the displayed total always equals the product
+ * of the shown legs — no hidden correlation discount). Correlated same-game
+ * pricing lives in the dedicated Bet Builder (`calculateBetBuilderOdds`), not
+ * here.
  */
 export function computeAccaOdds(
   selections: { fixtureId: string; odds: number }[],
 ): number {
-  const groups = new Map<string, number[]>();
-  for (const s of selections) {
-    const arr = groups.get(s.fixtureId) ?? [];
-    arr.push(s.odds);
-    groups.set(s.fixtureId, arr);
-  }
-  let total = 1;
-  for (const odds of groups.values()) {
-    if (odds.length === 1) { total *= odds[0]; continue; }
-    total *= calculateBetBuilderOdds(odds.map((o) => ({ odds: o })) as BetBuilderSelection[]);
-  }
+  if (selections.length === 0) return 1;
+  const total = selections.reduce((acc, s) => acc * s.odds, 1);
   return Math.max(1.01, Math.round(total * 100) / 100);
 }

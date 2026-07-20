@@ -424,31 +424,41 @@ export function simulateMatchTick(
   processFouls(updatedFixture, "away", awayTeam, awayActive.onField, matchMinute, updatedFixture.weatherModifiers);
   processFouls(updatedFixture, "home", homeTeam, homeActive.onField, matchMinute, updatedFixture.weatherModifiers);
 
-  // Dynamic random injury chance (1.5% chance per tick to get a realistic injury and sub)
-  if (Math.random() < 0.015) {
-    const isHomeInjured = Math.random() < 0.5;
-    const injuredT = isHomeInjured ? homeTeam : awayTeam;
-    const activeRoster = isHomeInjured ? homeActive : awayActive;
-    const outfieldOnField = activeRoster.onField.filter(p => p.position !== "GK");
+  // Injury risk is LOAD-BASED: tired legs and older players break down more
+  // often, and the victim is drawn weighted by that same load rather than
+  // uniformly at random.
+  {
+    const loadOf = (pl: Player) =>
+      1 + (pl.fatigue || 0) / 60 + Math.max(0, pl.age - 30) * 0.12;
+    const pool = [...homeActive.onField, ...awayActive.onField].filter((pl) => pl.position !== "GK");
+    const avgLoad = pool.length ? pool.reduce((acc, pl) => acc + loadOf(pl), 0) / pool.length : 1;
+    const injuryChance = Math.min(0.05, Math.max(0.004, 0.009 * avgLoad));
 
-    if (outfieldOnField.length > 0 && activeRoster.bench.length > 0) {
-      const injuredPlayer = outfieldOnField[Math.floor(Math.random() * outfieldOnField.length)];
-      const subPlayer = activeRoster.bench[Math.floor(Math.random() * activeRoster.bench.length)];
+    if (pool.length > 0 && Math.random() < injuryChance) {
+      const weights = pool.map(loadOf);
+      const totalW = weights.reduce((a, b) => a + b, 0);
+      let r = Math.random() * totalW;
+      let victim = pool[0];
+      for (let i = 0; i < pool.length; i++) {
+        r -= weights[i];
+        if (r <= 0) { victim = pool[i]; break; }
+      }
+      const isHomeInjured = homeActive.onField.some((pl) => pl.id === victim.id);
+      const injuredT = isHomeInjured ? homeTeam : awayTeam;
+      const activeRoster = isHomeInjured ? homeActive : awayActive;
 
-      updatedFixture.events.push({
-        minute: matchMinute,
-        type: "COMMENTARY",
-        teamId: injuredT.id,
-        playerId: injuredPlayer.id,
-        assistantPlayerId: subPlayer.id,
-        commentary: `🚑 INJURY SUB! ${injuredPlayer.name} stretchered off due to injury. Replaced by ${subPlayer.name}.`
-      });
-
-      // Recalculate lineups for remainder of the tick
-      if (isHomeInjured) {
-        homeActive = getTeamActivePlayers(homeTeam, updatedFixture.events);
-      } else {
-        awayActive = getTeamActivePlayers(awayTeam, updatedFixture.events);
+      if (activeRoster.bench.length > 0) {
+        const subPlayer = activeRoster.bench[Math.floor(Math.random() * activeRoster.bench.length)];
+        updatedFixture.events.push({
+          minute: matchMinute,
+          type: "COMMENTARY",
+          teamId: injuredT.id,
+          playerId: victim.id,
+          assistantPlayerId: subPlayer.id,
+          commentary: `🚑 INJURY SUB! ${victim.name} stretchered off due to injury. Replaced by ${subPlayer.name}.`,
+        });
+        if (isHomeInjured) homeActive = getTeamActivePlayers(homeTeam, updatedFixture.events);
+        else awayActive = getTeamActivePlayers(awayTeam, updatedFixture.events);
       }
     }
   }
@@ -613,63 +623,10 @@ export function simulateMatchTick(
   // from the shared expected-stats model, independent of the goal engine.
   applyVolumeStats(updatedFixture, homeTeam, awayTeam, currentTick);
 
-  // --- SHIFT IN-PLAY ODDS EVERY TICK BASED ON SCORELINE ---
-  if (currentTick >= 1 && currentTick <= 15) {
-    const diff = updatedFixture.homeScore - updatedFixture.awayScore;
-    let homeShift = 1.0;
-    let awayShift = 1.0;
-    let drawShift = 1.0;
-
-    // Remaining match time fraction (1.0 = full time remaining, 0.0 = match ended)
-    const timeRemaining = Math.max(0, 90 - matchMinute) / 90;
-
-    // A difference of 1 goal
-    if (diff === 1) {
-      homeShift = 0.5 + timeRemaining * 0.4;
-      awayShift = 3.0 - timeRemaining * 1.5;
-      drawShift = 2.0 - timeRemaining * 0.8;
-    } else if (diff === -1) {
-      homeShift = 3.0 - timeRemaining * 1.5;
-      awayShift = 0.5 + timeRemaining * 0.4;
-      drawShift = 2.0 - timeRemaining * 0.8;
-    } else if (diff === 2) {
-      homeShift = 0.15 + timeRemaining * 0.2;
-      awayShift = 8.0 - timeRemaining * 3.0;
-      drawShift = 4.0 - timeRemaining * 1.5;
-    } else if (diff === -2) {
-      homeShift = 8.0 - timeRemaining * 3.0;
-      awayShift = 0.15 + timeRemaining * 0.2;
-      drawShift = 4.0 - timeRemaining * 1.5;
-    } else if (diff >= 3) {
-      homeShift = 0.01;
-      awayShift = 50.0;
-      drawShift = 20.0;
-    } else if (diff <= -3) {
-      homeShift = 50.0;
-      awayShift = 0.01;
-      drawShift = 20.0;
-    } else { // diff === 0
-      homeShift = 1.0 + (1.0 - timeRemaining) * 0.5;
-      awayShift = 1.0 + (1.0 - timeRemaining) * 0.5;
-      drawShift = Math.max(0.01, 1.0 - (1.0 - timeRemaining) * 0.8);
-    }
-
-    updatedFixture.odds.homeWin = Math.max(1.01, Math.round((updatedFixture.odds.homeWin * homeShift) * 100) / 100);
-    updatedFixture.odds.awayWin = Math.max(1.01, Math.round((updatedFixture.odds.awayWin * awayShift) * 100) / 100);
-    updatedFixture.odds.draw = Math.max(1.01, Math.round((updatedFixture.odds.draw * drawShift) * 100) / 100);
-
-    // If one side is 4+ goals up, only suspend the LOSING team's win odds.
-    // The leading team's win odds remain available (they're very short but not suspended).
-    if (diff >= 4) {
-      // Away cannot realistically win from 4 down
-      updatedFixture.odds.awayWin = NaN;
-      updatedFixture.odds.draw = NaN;
-    } else if (diff <= -4) {
-      // Home cannot realistically win from 4 down
-      updatedFixture.odds.homeWin = NaN;
-      updatedFixture.odds.draw = NaN;
-    }
-  }
+  // NOTE: stored fixture.odds are the PRE-MATCH prices and are deliberately left
+  // untouched during play. Live prices are recomputed on demand from those plus
+  // the match state by utils/liveOdds.ts — previously this block ALSO shifted the
+  // stored odds, so the live layer compounded on top of already-shifted numbers.
 
   // Half time Check
   if (currentTick === 7) {

@@ -1,6 +1,7 @@
 import { Team, Player, Fixture, FixtureStatus, MatchStats, WeatherCondition } from "../types";
 import { getInitialTeams } from "./teams";
 import { computeMatchOdds } from "../engine/oddsEngine";
+import { calculateTeamRating } from "../engine/matchEngine";
 import { developPlayer } from "../utils/playerUtils";
 import { selectMatchWeather } from "../engine/weatherEngine";
 
@@ -159,11 +160,23 @@ export function updateRostersAndStatsAfterFixture(
     else if (isLoss) nextLost += 1;
     else if (isDraw) nextDrawn += 1;
 
-    // Handle Morale
+    // Handle Morale — opponent-adjusted: beating a stronger side lifts morale far
+    // more than beating a minnow, and losing to a giant stings less than losing to
+    // a weaker team. `gap` is positive when the OPPONENT was the stronger side.
+    const oppTeam = teams.find((x) => x.id === (isHome ? awayId : homeId));
+    const myRating = calculateTeamRating(t);
+    const oppRating = oppTeam ? calculateTeamRating(oppTeam) : myRating;
+    const gap = Math.max(-1.5, Math.min(1.5, (oppRating - myRating) / 10));
+    const jitter = Math.random() * 3;
     let nextMorale = t.morale || 60;
-    if (isWin) nextMorale = Math.min(100, nextMorale + Math.floor(Math.random() * 6) + 4); // +4 to +9
-    else if (isLoss) nextMorale = Math.max(0, nextMorale - Math.floor(Math.random() * 6) - 4); // -4 to -9
-    else if (isDraw) nextMorale = Math.max(0, Math.min(100, nextMorale + Math.floor(Math.random() * 5) - 2)); // -2 to +2
+    if (isWin) {
+      nextMorale += 4 + jitter + Math.max(-2, Math.min(5, gap * 3));
+    } else if (isLoss) {
+      nextMorale -= 4 + jitter - Math.max(-1, Math.min(4, gap * 3));
+    } else if (isDraw) {
+      nextMorale += Math.max(-2.5, Math.min(3, gap * 2));
+    }
+    nextMorale = Math.max(0, Math.min(100, Math.round(nextMorale)));
 
     // Track players updates
     const nextPlayers = t.players.map(p => {
@@ -186,11 +199,15 @@ export function updateRostersAndStatsAfterFixture(
         pStats.seasonStats.matchesPlayed += 1;
         
         // Increase fatigue
-        pStats.fatigue = Math.min(100, (pStats.fatigue || 0) + Math.floor(Math.random() * 10) + 5); 
+        // Older legs tire faster from the same 90 minutes.
+        const ageLoad = 1 + Math.max(0, pStats.age - 29) * 0.05;
+        pStats.fatigue = Math.min(100, (pStats.fatigue || 0) + Math.round((Math.random() * 9 + 5) * ageLoad));
       }
 
       // Base recovery for all players between matchdays
-      pStats.fatigue = Math.max(0, (pStats.fatigue || 0) - 5);
+      // Rest recovery — older players recover more slowly.
+      const recovery = Math.max(3, 6 - Math.max(0, pStats.age - 30) * 0.25);
+      pStats.fatigue = Math.max(0, (pStats.fatigue || 0) - recovery);
 
       // 1. Accumulate Goals and Assists inside events
       completedFixture.events.forEach(ev => {

@@ -1,4 +1,5 @@
 import { Team, Player, TransferListing, Profile, ClubOwnership } from "../types";
+import { calculateTeamRating } from "./matchEngine";
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -44,7 +45,16 @@ export function calculatePlayerValue(player: Player, team: Team): number {
   const assists = (player.seasonStats?.assists ?? player.assists ?? 0);
   const performanceBonus = goals * 50_000 + assists * 20_000;
 
-  return Math.round(base * ageFactor(player.age) * moraleFactor(team.morale) + performanceBonus);
+  // Upside: a young player with room to grow toward his potential is worth a
+  // premium; an older player at his ceiling is not.
+  const potential = player.potential ?? player.rating;
+  const upside = Math.max(0, potential - player.rating);
+  const youthWeight = player.age <= 24 ? 1 : player.age <= 28 ? 0.45 : 0.15;
+  const potentialFactor = 1 + Math.min(0.65, upside * 0.05) * youthWeight;
+
+  return Math.round(
+    base * ageFactor(player.age) * moraleFactor(team.morale) * potentialFactor + performanceBonus,
+  );
 }
 
 // ──────────────────────────────────────────────
@@ -87,7 +97,7 @@ function pickBalancedListings(
       listedAtRound: roundIndex,
       expiresAtRound: roundIndex + 2,
       status: "OPEN" as const,
-      bids: generateAIBids(team, value, teams),
+      bids: generateAIBids(team, player, value, teams),
     };
   });
 }
@@ -174,16 +184,29 @@ export function refreshTransferListings(
  *  to a real squad on sale (previously used fake "ai-bidder-N" ids and the player vanished). */
 function generateAIBids(
   listedTeam: Team,
+  player: Player,
   value: number,
   teams: Team[],
 ): TransferListing["bids"] {
   const buyers = teams.filter((t) => t.id !== listedTeam.id && !t.ownership);
   if (buyers.length === 0) return [];
-  const numBidders = Math.min(buyers.length, Math.floor(Math.random() * 2) + 1);
-  const chosen = [...buyers].sort(() => Math.random() - 0.5).slice(0, numBidders);
+
+  // Clubs bid on what they NEED and what they can justify: a side short in the
+  // player's position, and a stronger side, bids harder.
+  const need = (t: Team) => {
+    const count = t.players.filter((pl) => pl.position === player.position).length;
+    return count <= 2 ? 1.3 : count <= 3 ? 1.12 : count >= 6 ? 0.78 : 1.0;
+  };
+  const strength = (t: Team) => Math.max(0.7, Math.min(1.35, calculateTeamRating(t) / 75));
+  const appetite = (t: Team) => need(t) * strength(t);
+
+  const ranked = [...buyers].sort((a, b) => appetite(b) - appetite(a)).slice(0, 6);
+  const interested = ranked.filter(() => Math.random() < 0.5).slice(0, 3);
+  const chosen = interested.length > 0 ? interested : ranked.slice(0, 1);
+
   return chosen.map((b) => ({
     bidderId: b.id,
-    amount: Math.round(value * (0.75 + Math.random() * 0.35)),
+    amount: Math.round(value * (0.72 + Math.random() * 0.3) * Math.min(1.35, Math.max(0.8, appetite(b)))),
   }));
 }
 

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Tv, Calendar, Ticket, Users, BarChart3, Trophy, Award, Plus, RotateCcw, Activity, LogOut, Gamepad2, MessageSquare, ShieldCheck, ArrowLeftRight } from "lucide-react";
+import { HeaderCredit } from "./ui/site-footer";
 
 interface HeaderProps {
   activeTab: string;
@@ -90,6 +91,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Profile & Wallet */}
       <div className="flex items-center gap-1.5 md:gap-3">
+        <HeaderCredit />
         {/* Wallet Display */}
         <div className="bg-white/5 px-2 md:px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-1.5 md:gap-2">
           <span className="hidden sm:inline text-[9px] font-mono text-slate-400 tracking-wider">WALLET:</span>

@@ -27,6 +27,7 @@ interface LiveMatchesProps {
   onAddBetSelection: (sel: BetSelection) => void;
   onRemoveSelection: (fixId: string, type: string, selId: string) => void;
   ownedTeamId?: string;
+  onWatch2D?: (fixtureId: string) => void;
 }
 
 export const LiveMatches: React.FC<LiveMatchesProps> = ({
@@ -47,7 +48,8 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
   selectedBets,
   onAddBetSelection,
   onRemoveSelection,
-  ownedTeamId
+  ownedTeamId,
+  onWatch2D
 }) => {
   // Filters active fixtures for current round
   const activeFixtures = fixtures.filter(f => f.roundIndex === roundIndex);
@@ -286,6 +288,16 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
                       className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black px-4 py-2 rounded-xl text-xs cursor-pointer flex items-center gap-1 shadow-md shadow-emerald-500/10 animate-pulse transition-all"
                     >
                       {isHalfTimePause ? "▶️ START 2ND HALF (RESUME)" : "▶️ WATCH MATCH LIVE (90 mins)"}
+                    </button>
+                  )}
+
+                  {onWatch2D && !isSimulating && (
+                    <button
+                      onClick={() => onWatch2D(selectedFixtureId)}
+                      className="bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 font-black px-4 py-2 rounded-xl text-xs cursor-pointer flex items-center gap-1 transition-all"
+                      title="Simulate this match with the high-fidelity spatial engine and watch it in 2D"
+                    >
+                      🛰️ WATCH IN 2D
                     </button>
                   )}
 

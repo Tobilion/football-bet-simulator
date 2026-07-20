@@ -1,4 +1,15 @@
 import { Fixture, MOTMResult, Team } from "../types";
+import { computeMatchRatings, PlayerMatchRating } from "./playerRatingUtils";
+
+function reasonFromRating(r: PlayerMatchRating): string {
+  const parts: string[] = [];
+  if (r.goals > 0) parts.push(`${r.goals} goal${r.goals > 1 ? "s" : ""}`);
+  if (r.assists > 0) parts.push(`${r.assists} assist${r.assists > 1 ? "s" : ""}`);
+  if (r.saves > 0) parts.push(`${r.saves} save${r.saves > 1 ? "s" : ""}`);
+  if (r.yellows > 0) parts.push(`${r.yellows} yellow${r.yellows > 1 ? "s" : ""}`);
+  if (r.reds > 0) parts.push(`red card`);
+  return parts.length > 0 ? parts.join(", ") : "Solid performance";
+}
 
 interface PlayerScore {
   playerId: string;
@@ -52,80 +63,22 @@ function buildReason(ps: PlayerScore): string {
  *   Winning team: +1 base bonus
  *   Draw:         +0.25 base bonus
  */
+// Player of the Match is now, by definition, the highest post-match player
+// rating (`computeMatchRatings`), so the MOTM shown anywhere ALWAYS matches the
+// top entry of the full-time ratings list. Delegating here keeps every surface
+// (FT card, ratings panel, Teams history, awards) in agreement.
 export function calculateMOTM(fixture: Fixture, teams: Team[]): MOTMResult | null {
-  const scores = new Map<string, PlayerScore>();
-
-  // Determine winning team
-  const h = Math.floor(fixture.homeScore);
-  const a = Math.floor(fixture.awayScore);
-  const winnerTeamId = h > a ? fixture.homeTeamId : a > h ? fixture.awayTeamId : null;
-  const isDraw = h === a;
-
-  // Build a playerId → teamId lookup from team rosters
-  const playerTeam = new Map<string, string>();
-  for (const team of teams) {
-    for (const player of team.players ?? []) {
-      playerTeam.set(player.id, team.id);
-    }
-  }
-
-  for (const ev of fixture.events) {
-    if (!ev.playerId || !ev.playerName) continue;
-    const teamId = ev.teamId ?? playerTeam.get(ev.playerId) ?? "";
-    const ps = getOrCreate(scores, ev.playerId, ev.playerName, teamId);
-
-    if (ev.type === "GOAL") {
-      ps.goals += 1;
-      ps.score += 3;
-      // Also credit the assistant
-      if (ev.assistantPlayerId && ev.assistantPlayerName) {
-        const assTeamId = ev.teamId ?? playerTeam.get(ev.assistantPlayerId) ?? "";
-        const ass = getOrCreate(scores, ev.assistantPlayerId, ev.assistantPlayerName, assTeamId);
-        ass.assists += 1;
-        ass.score += 2;
-      }
-    } else if (ev.type === "ASSIST") {
-      ps.assists += 1;
-      ps.score += 2;
-    } else if (ev.type === "SAVE") {
-      ps.saves += 1;
-      ps.score += 1.5;
-    } else if (ev.type === "YELLOW_CARD") {
-      ps.yellows += 1;
-      ps.score -= 0.5;
-    } else if (ev.type === "RED_CARD") {
-      ps.reds += 1;
-      ps.score -= 2;
-    }
-  }
-
-  if (scores.size === 0) return null;
-
-  // Apply team bonus
-  for (const ps of scores.values()) {
-    if (winnerTeamId && ps.teamId === winnerTeamId) {
-      ps.score += 1;
-    } else if (isDraw) {
-      ps.score += 0.25;
-    }
-  }
-
-  // Pick highest scorer
-  let best: PlayerScore | null = null;
-  for (const ps of scores.values()) {
-    if (!best || ps.score > best.score) best = ps;
-  }
-  if (!best) return null;
-
-  // Convert score to a 0–10 match rating (base 6, up to 10)
-  const rawRating = Math.min(10, Math.max(5.5, 6 + best.score * 0.4));
-  const matchRating = Math.round(rawRating * 10) / 10;
-
+  const { home, away } = computeMatchRatings(fixture, teams);
+  const all = [...home, ...away];
+  if (all.length === 0) return null;
+  const top = all.find((r) => r.isMotm) ??
+    all.reduce<PlayerMatchRating | null>((b, r) => (!b || r.rating > b.rating ? r : b), null);
+  if (!top) return null;
   return {
-    playerId: best.playerId,
-    playerName: best.playerName,
-    teamId: best.teamId,
-    score: matchRating,
-    reason: buildReason(best),
+    playerId: top.playerId,
+    playerName: top.name,
+    teamId: top.teamId,
+    score: top.rating,
+    reason: reasonFromRating(top),
   };
 }

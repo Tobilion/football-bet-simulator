@@ -46,6 +46,7 @@ export interface Player {
   injuredRounds?: number;
   suspendedRounds?: number;
   isReserve?: boolean; // bench/reserve squad member; shown as a badge, never in the name
+  potential?: number;  // soft ceiling this player can develop toward (derived once, then persisted)
 }
 
 export type Formation = "4-4-2" | "4-3-3" | "3-5-2" | "4-2-3-1" | "5-3-2" | "3-4-3";

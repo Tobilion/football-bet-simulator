@@ -8,9 +8,10 @@ import { calculateImpliedProbability, applyOwnerBoost } from "../src/utils/oddsU
 import * as w from "../src/utils/wallet";
 import { getLiveInPlayOdds } from "../src/utils";
 import { dedupeForAccumulator, marketGroupKey } from "../src/utils/betSlipUtils";
-import { simulateFullMatchInstantly, calculateTeamRating } from "../src/engine/matchEngine";
+import { simulateFullMatchInstantly, calculateTeamRating, simulateMatchTick } from "../src/engine/matchEngine";
 import { computeMatchOdds } from "../src/engine/oddsEngine";
 import { blendedExpected } from "../src/utils/statsUtils";
+import { developPlayer } from "../src/utils/playerUtils";
 import type { BetSelection, BetTicket, Fixture, Team } from "../src/types";
 
 let pass = 0, fail = 0;
@@ -275,12 +276,20 @@ console.log("betSlipUtils.dedupeForAccumulator");
   ok(marketGroupKey(home) === marketGroupKey(away), "Home & Away share a market group (mutually exclusive)");
   ok(marketGroupKey(home) !== marketGroupKey(over), "Match-winner and over/under are different groups");
   const { kept, dropped } = dedupeForAccumulator([home, away, over]);
-  ok(kept.length === 2 && dropped.length === 1, "acca dedupe keeps Home+Over, drops Away");
-  ok(dropped[0].selectionId === "AWAY", "the second same-group pick is dropped");
+  ok(kept.length === 2 && dropped.length === 1, "acca dedupe keeps 2, drops 1 conflicting pick");
+  ok(dropped[0].selectionId === "HOME", "keeps the LAST exclusive pick (Away), drops the earlier (Home) — so tapping a new option switches");
   // Two different anytime scorers are NOT exclusive.
   const gsA = sel("ANYTIME_GOALSCORER", "p1", 3);
   const gsB = sel("ANYTIME_GOALSCORER", "p2", 4);
   ok(dedupeForAccumulator([gsA, gsB]).dropped.length === 0, "two different scorers allowed together");
+}
+
+// acca combined odds = straight product of legs (no hidden discount)
+{
+  const { computeAccaOdds } = require("../src/utils/betBuilderUtils");
+  const legs = [1.49, 2.78, 2.0, 3.07, 1.67, 1.72].map((o, i) => ({ fixtureId: `m${i}`, odds: o }));
+  const prod = Math.round(legs.reduce((a, l) => a * l.odds, 1) * 100) / 100;
+  ok(Math.abs(computeAccaOdds(legs) - prod) < 0.01, `6-leg acca = product of legs (${computeAccaOdds(legs)} ≈ ${prod})`);
 }
 
 // ---------- Stats aggregation + odds calibration ----------
@@ -313,6 +322,119 @@ console.log("statsUtils shrinkage + odds calibration");
   ok(Math.abs(l105.over - l105.under) < 0.7, `even corners fair near 10.5 (O${l105.over}/U${l105.under})`);
   const strong = computeMatchOdds(teamR("H", 90), teamR("A", 64), []);
   ok(strong.homeWin < 1.6 && strong.awayWin > 4, `favourite short, underdog long (H${strong.homeWin}/A${strong.awayWin})`);
+}
+
+// ---------- Player development (stats-driven) ----------
+console.log("playerUtils.developPlayer");
+{
+  const mkP = (id: string, age: number, rating: number, apps: number, goals: number): any => ({
+    id, name: id, teamId: "T", position: "ATT", rating, age, fatigue: 0, injured: false,
+    injuryRecoveryMatches: 0, goals, assists: 0, saves: 0, yellowCards: 0, redCards: 0,
+    matchesPlayed: apps,
+    seasonStats: { goalsScored: goals, assists: 0, yellowCards: 0, redCards: 0, matchesPlayed: apps, cleanSheets: 0 },
+    abilities: { pace: rating, shooting: rating, passing: rating, dribbling: rating, defending: rating, physical: rating },
+  });
+  const starter = developPlayer(mkP("dev-starter", 19, 68, 14, 10));
+  const bench = developPlayer(mkP("dev-bench", 19, 68, 1, 0));
+  ok(starter.rating > 68, `young starter improves (${starter.rating})`);
+  ok(starter.rating - 68 > (bench.rating - 68) * 2, `game time drives growth: starter +${(starter.rating - 68).toFixed(1)} vs bench +${(bench.rating - 68).toFixed(1)}`);
+  const old = developPlayer(mkP("dev-old", 34, 79, 3, 0));
+  ok(old.rating < 79, `34-year-old declines (${old.rating})`);
+  ok(starter.abilities.shooting > 68, "abilities develop with the rating (spatial engine sees it)");
+  ok(starter.seasonStats.matchesPlayed === 0, "season stats reset at rollover");
+  // growth never exceeds the player's potential ceiling
+  let p: any = mkP("dev-cap", 18, 66, 14, 9);
+  for (let i = 0; i < 8; i++) {
+    p = developPlayer(p);
+    p.seasonStats = { goalsScored: 9, assists: 0, yellowCards: 0, redCards: 0, matchesPlayed: 14, cleanSheets: 0 };
+  }
+  ok(p.rating <= (p.potential ?? 99) + 0.001, `never exceeds potential (${p.rating} <= ${p.potential})`);
+}
+
+// ---------- Odds: Dixon-Coles + goal-market consistency + scorer history ----------
+console.log("oddsEngine DC + scorer history");
+{
+  const teamR = (id: string, r: number, strikerGoals = 0, apps = 0): any => ({
+    id, name: id, shortName: id, rating: 3.5, primaryColor: "#fff", secondaryColor: "#000",
+    players: [
+      { id: id + "gk", name: "gk", teamId: id, position: "GK", rating: r, age: 25, fatigue: 0, injured: false, injuryRecoveryMatches: 0, goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0, seasonStats: { goalsScored: 0, assists: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0, cleanSheets: 0 } },
+      ...["DEF","DEF","DEF","DEF","MID","MID","MID","MID","ATT","ATT","ATT"].map((pos, i) => ({
+        id: id + i, name: "p" + i, teamId: id, position: pos, rating: r, age: 25, fatigue: 0, injured: false,
+        injuryRecoveryMatches: 0, goals: i === 8 ? strikerGoals : 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0,
+        matchesPlayed: i === 8 ? apps : 0,
+        seasonStats: { goalsScored: i === 8 ? strikerGoals : 0, assists: 0, yellowCards: 0, redCards: 0, matchesPlayed: i === 8 ? apps : 0, cleanSheets: 0 },
+      })),
+    ],
+    wonMatches: 0, drawnMatches: 0, lostMatches: 0, goalsScored: 0, goalsConceded: 0, morale: 60, rivalClubIds: [],
+  });
+  const o = computeMatchOdds(teamR("H", 78), teamR("A", 78), []);
+  // Every goal market comes from the same corrected matrix: P(under 0.5) must
+  // equal P(exact 0-0).
+  const pUnder05 = 1 / (o.overUnder!.under0_5);
+  const p00 = 1 / (o.exactScores.find((e) => e.score === "0-0")!.odds);
+  ok(Math.abs(pUnder05 - p00) < 0.01, `under 0.5 == exact 0-0 (${pUnder05.toFixed(3)} vs ${p00.toFixed(3)})`);
+  const overround = 1 / o.homeWin + 1 / o.draw + 1 / o.awayWin;
+  ok(overround > 1 && overround < 1.4, `1X2 overround sane after DC (${overround.toFixed(3)})`);
+  // A prolific striker is priced shorter than an identical one who never scores.
+  const prolific = computeMatchOdds(teamR("P", 78, 12, 14), teamR("A2", 78), []);
+  const barren = computeMatchOdds(teamR("B", 78, 0, 14), teamR("A3", 78), []);
+  const best = (odds: any) => Math.min(...odds.goalscorers.map((g: any) => g.odds));
+  ok(best(prolific) < best(barren), `scoring record shortens anytime odds (${best(prolific)} < ${best(barren)})`);
+}
+
+// ---------- Unified live in-play odds (one model, coherent markets) ----------
+console.log("liveOdds unification");
+{
+  const preOdds: any = {
+    homeWin: 2.1, draw: 3.4, awayWin: 3.6,
+    overUnder: { over0_5: 1.1, under0_5: 7, over1_5: 1.35, under1_5: 3.1,
+                 over2_5: 2.0, under2_5: 1.8, over3_5: 3.4, under3_5: 1.3,
+                 over4_5: 6.5, under4_5: 1.1 },
+    exactScores: [], goalscorers: [],
+  };
+  const live = (over: Partial<Fixture>) => fx({ status: "LIVE", odds: preOdds, ...over });
+
+  // 1X2 stays a coherent book in-play (each price no longer drifts independently).
+  const f0 = live({ currentMinute: 30, homeScore: 0, awayScore: 0 });
+  const h = getLiveInPlayOdds(f0, "MATCH_WINNER", "HOME", 2.1)!;
+  const d = getLiveInPlayOdds(f0, "MATCH_WINNER", "DRAW", 3.4)!;
+  const a = getLiveInPlayOdds(f0, "MATCH_WINNER", "AWAY", 3.6)!;
+  const book = 1 / h + 1 / d + 1 / a;
+  ok(book > 1.0 && book < 1.2, `live 1X2 book coherent (${book.toFixed(3)})`);
+
+  // Double chance agrees with the 1X2 it is built from.
+  const hd = getLiveInPlayOdds(f0, "DOUBLE_CHANCE", "HOME_OR_DRAW", 1.4)!;
+  ok(Math.abs(1 / hd - (1 / h + 1 / d)) < 0.02, "double chance == home + draw probability");
+
+  // Over/under on the same line are complementary.
+  const ov = getLiveInPlayOdds(f0, "OVER_UNDER_GOALS", "OVER_2_5", 2.0)!;
+  const un = getLiveInPlayOdds(f0, "OVER_UNDER_GOALS", "UNDER_2_5", 1.8)!;
+  ok(Math.abs(1 / ov + 1 / un - book / 3 * 3) < 0.2 || Math.abs((1 / ov + 1 / un) - 1.08) < 0.05,
+     `over+under 2.5 complementary (${(1 / ov + 1 / un).toFixed(3)})`);
+
+  // A lead is worth more as the clock runs down (monotonic, not a fixed multiplier).
+  const early = getLiveInPlayOdds(live({ currentMinute: 20, homeScore: 1, awayScore: 0 }), "MATCH_WINNER", "HOME", 2.1)!;
+  const late = getLiveInPlayOdds(live({ currentMinute: 85, homeScore: 1, awayScore: 0 }), "MATCH_WINNER", "HOME", 2.1)!;
+  ok(late < early, `1-0 lead shortens as time runs out (${early} -> ${late})`);
+
+  // Trailing side lengthens but is never suspended while it remains possible.
+  const trailing = getLiveInPlayOdds(live({ currentMinute: 85, homeScore: 0, awayScore: 1 }), "MATCH_WINNER", "HOME", 2.1);
+  ok(typeof trailing === "number" && trailing > early, `trailing side priced long, not suspended (${trailing})`);
+
+  // The simulation must NOT mutate the stored pre-match odds any more.
+  {
+    const before = { ...preOdds };
+    const teamFor = (id: string): any => ({
+      id, name: id, shortName: id, rating: 3.5, primaryColor: "#fff", secondaryColor: "#000",
+      players: [{ id: id + "gk", name: "gk", teamId: id, position: "GK", rating: 75, age: 25, fatigue: 0, injured: false, injuryRecoveryMatches: 0, goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0, seasonStats: { goalsScored: 0, assists: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0, cleanSheets: 0 } },
+        ...["DEF","DEF","DEF","DEF","MID","MID","MID","MID","ATT","ATT","ATT"].map((pos, i) => ({ id: id + i, name: "p" + i, teamId: id, position: pos, rating: 75, age: 25, fatigue: 0, injured: false, injuryRecoveryMatches: 0, goals: 0, assists: 0, saves: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0, seasonStats: { goalsScored: 0, assists: 0, yellowCards: 0, redCards: 0, matchesPlayed: 0, cleanSheets: 0 } }))],
+      wonMatches: 0, drawnMatches: 0, lostMatches: 0, goalsScored: 0, goalsConceded: 0, morale: 60, rivalClubIds: [],
+    });
+    let f: any = fx({ id: "l-tick", status: "SCHEDULED", homeScore: 0, awayScore: 0, currentMinute: 0, elapsedTicks: 0, events: [], odds: { ...preOdds } });
+    for (let t = 1; t <= 8; t++) f = simulateMatchTick(f, teamFor("h"), teamFor("a"), t);
+    ok(f.odds.homeWin === before.homeWin && f.odds.draw === before.draw && f.odds.awayWin === before.awayWin,
+       "tick sim leaves stored pre-match odds untouched (no double-adjustment)");
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

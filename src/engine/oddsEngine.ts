@@ -20,6 +20,18 @@ import { getTeamForm, getHeadToHead } from "../utils/formUtils";
 
 const MARGIN = 1.08;
 const MAX_GOALS = 8;
+// Dixon-Coles dependence parameter. Plain Poisson treats the two scores as
+// independent, which under-prices draws and 0-0/1-1 specifically. A negative rho
+// lifts 0-0 and 1-1 while trimming 1-0/0-1 — the standard low-score correction.
+const DC_RHO = -0.06;
+
+function dcTau(i: number, j: number, lh: number, la: number): number {
+  if (i === 0 && j === 0) return 1 - lh * la * DC_RHO;
+  if (i === 0 && j === 1) return 1 + lh * DC_RHO;
+  if (i === 1 && j === 0) return 1 + la * DC_RHO;
+  if (i === 1 && j === 1) return 1 - DC_RHO;
+  return 1;
+}
 
 function factorial(n: number): number {
   let r = 1;
@@ -54,6 +66,9 @@ const EXACT_SCORELINES = [
   "0-3", "1-3", "2-3",
 ];
 
+// How much a player's own scoring record is trusted vs the positional baseline.
+const SCORER_SHRINK = 4;
+
 function goalscorerOdds(team: Team, teamXG: number): GoalscorerOdds[] {
   const xi = getStartingXI(team).filter((p) => p.position !== "GK");
   if (xi.length === 0) return [];
@@ -61,9 +76,18 @@ function goalscorerOdds(team: Team, teamXG: number): GoalscorerOdds[] {
   const posBase: Record<string, number> = { ATT: 0.34, MID: 0.13, DEF: 0.05 };
   return xi.map((p) => {
     const base = posBase[p.position] ?? 0.08;
+    // Observed scoring: goals per appearance -> P(scores at least once) via Poisson,
+    // shrunk toward the positional baseline by how many games they've actually played.
+    const apps = p.seasonStats?.matchesPlayed ?? p.matchesPlayed ?? 0;
+    const goals = p.seasonStats?.goalsScored ?? p.goals ?? 0;
+    let rate = base;
+    if (apps > 0) {
+      const observed = 1 - Math.exp(-(goals / apps));
+      rate = (observed * apps + base * SCORER_SHRINK) / (apps + SCORER_SHRINK);
+    }
     const ratingFactor = p.rating / Math.max(50, avgRating);
     const share = teamXG / STAT_BASELINE.goals;
-    const anytimeP = clamp(base * ratingFactor * share, 0.02, 0.85);
+    const anytimeP = clamp(rate * ratingFactor * share, 0.02, 0.85);
     return { playerId: p.id, name: p.name, position: p.position as Position, odds: oddsFromProb(anytimeP) };
   });
 }
@@ -113,8 +137,8 @@ export function computeMatchOdds(
   for (let i = 0; i <= MAX_GOALS; i++) {
     matrix[i] = [];
     for (let j = 0; j <= MAX_GOALS; j++) {
-      const p = poisson(i, lambdaHome) * poisson(j, lambdaAway);
-      matrix[i][j] = p;
+      const p = poisson(i, lambdaHome) * poisson(j, lambdaAway) * dcTau(i, j, lambdaHome, lambdaAway);
+      matrix[i][j] = Math.max(0, p);
       matrixSum += p;
     }
   }
@@ -136,9 +160,14 @@ export function computeMatchOdds(
     return { score, odds: oddsFromProb(p) };
   });
 
-  const lambdaTotalGoals = lambdaHome + lambdaAway;
+  // Goals over/unders come from the SAME (Dixon-Coles corrected) score matrix as
+  // 1X2/BTTS/exact scores, so no goal market can disagree with another.
   const ouLine = (line: number) => {
-    const over = probTotalOver(line, lambdaTotalGoals);
+    let over = 0;
+    for (let i = 0; i <= MAX_GOALS; i++)
+      for (let j = 0; j <= MAX_GOALS; j++)
+        if (i + j > line) over += matrix[i][j] / matrixSum;
+    over = clamp(over, 0, 1);
     return { over: oddsFromProb(over), under: oddsFromProb(1 - over) };
   };
   const overUnder = {
