@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Tv, Calendar, Ticket, Users, BarChart3, Trophy, Award, Plus, RotateCcw, Activity, LogOut, Gamepad2, MessageSquare, ShieldCheck, ArrowLeftRight } from "lucide-react";
-import { HeaderCredit } from "./ui/site-footer";
+import { AvatarCredit } from "./ui/site-footer";
 
 interface HeaderProps {
   activeTab: string;
@@ -28,6 +28,16 @@ export const Header: React.FC<HeaderProps> = ({
   hasOwnedClub = false,
 }) => {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
+  const handleNavWheel = (e: React.WheelEvent<HTMLElement>) => {
+    const el = navRef.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    // Let a mostly-vertical wheel gesture scroll the tab strip horizontally.
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      el.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }
+  };
   const tabs = [
     { id: "live", label: "Live", icon: <Tv size={14} className="opacity-85" /> },
     { id: "fixtures", label: "Fixtures & Odds", icon: <Calendar size={14} className="opacity-85" /> },
@@ -47,7 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="glass-panel border-x-0 border-t-0 rounded-none h-16 px-4 md:px-6 flex items-center justify-between select-none shrink-0 z-40">
       {/* Brand logo */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 shrink-0">
         <Activity size={20} className="animate-pulse text-emerald-400" />
         <div className="hidden sm:block">
           <h1 className="text-sm font-black tracking-wider uppercase text-emerald-400 font-sans leading-none">
@@ -59,8 +69,13 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Navigation tabs */}
-      <nav className="flex items-center overflow-x-auto no-scrollbar max-w-[45%] sm:max-w-[55%] md:max-w-none h-full mx-2">
+      {/* Navigation tabs — scroll with trackpad/shift-wheel, or mouse wheel (auto-converted to horizontal) */}
+      <nav
+        ref={navRef}
+        onWheel={handleNavWheel}
+        title="Scroll to see more tabs"
+        className="flex items-center overflow-x-auto scroll-fade flex-1 min-w-0 h-full mx-2"
+      >
         <div className="flex items-center gap-0.5 md:gap-1">
           {tabs.map(tab => {
             const isActive = activeTab === tab.id;
@@ -90,12 +105,11 @@ export const Header: React.FC<HeaderProps> = ({
       </nav>
 
       {/* Profile & Wallet */}
-      <div className="flex items-center gap-1.5 md:gap-3">
-        <HeaderCredit />
+      <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
         {/* Wallet Display */}
         <div className="bg-white/5 px-2 md:px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-1.5 md:gap-2">
           <span className="hidden sm:inline text-[9px] font-mono text-slate-400 tracking-wider">WALLET:</span>
-          <span className="text-xs font-bold text-emerald-400 font-mono">
+          <span className="text-xs font-bold text-emerald-400 font-mono whitespace-nowrap">
             ${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
           <button
@@ -173,12 +187,8 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         )}
 
-        {/* User name badge */}
-                <div className="hidden md:flex items-center gap-2">
-          <div className="h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center font-black text-slate-900 border border-emerald-400 shadow-lg shadow-emerald-500/20">
-            {username.slice(0, 2).toUpperCase()}
-          </div>
-        </div>
+        {/* User name badge — hover/click reveals "Built by Tobiloba Jagun" + links */}
+        <AvatarCredit username={username} />
       </div>
     </header>
   );

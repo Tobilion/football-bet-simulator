@@ -14,7 +14,7 @@ interface FooterLink {
   label: string
 }
 
-const LINKS: FooterLink[] = [
+export const LINKS: FooterLink[] = [
   { icon: Github, href: "https://github.com/Tobilion", label: "GitHub" },
   { icon: Globe, href: "https://tobiloba-jagun-portfolio.vercel.app/", label: "Portfolio" },
   { icon: Linkedin, href: "https://www.linkedin.com/in/tobiloba-jagun/", label: "LinkedIn" },
@@ -124,6 +124,67 @@ export const HeaderCredit = ({ className }: { className?: string }) => {
             </a>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+/** Avatar-triggered credit: hover/click the user's initials badge to reveal "Built by" + links. */
+export const AvatarCredit = ({ username, className }: { username: string; className?: string }) => {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <div
+      className={cn("relative flex items-center", className)}
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+    >
+      {/* Backdrop: lets a tap outside close the popup on touch devices (no hover to rely on) */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setIsOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <button
+        type="button"
+        onClick={() => setIsOpen((o) => !o)}
+        aria-expanded={isOpen}
+        aria-label="Tobiloba Jagun — show credit"
+        className="h-8 w-8 shrink-0 rounded-full bg-emerald-500 flex items-center justify-center font-black text-slate-900 border border-emerald-400 shadow-lg shadow-emerald-500/20 cursor-pointer touch-manipulation"
+      >
+        {username.slice(0, 2).toUpperCase()}
+      </button>
+      <div
+        className={cn(
+          "absolute right-0 top-full mt-1 z-50 flex flex-col items-end gap-1.5 max-w-[calc(100vw-2rem)]",
+          "transition-all duration-200 origin-top-right",
+          isOpen ? "opacity-100 scale-100" : "pointer-events-none opacity-0 scale-95"
+        )}
+      >
+        <span className="text-[10px] font-mono text-slate-400 bg-slate-950/95 border border-white/10 rounded-lg px-2 py-1 whitespace-nowrap shadow-lg">
+          Built by <span className="font-semibold text-slate-200">Tobiloba Jagun</span>
+        </span>
+        <div className="flex overflow-hidden rounded-xl border border-white/10 shadow-lg">
+          {LINKS.map((link) => {
+            const Icon = link.icon
+            return (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={link.label}
+                title={link.label}
+                tabIndex={isOpen ? 0 : -1}
+                className="flex h-10 w-11 sm:h-9 sm:w-10 items-center justify-center bg-black text-white border-r border-white/10 last:border-r-0 hover:bg-gray-800 transition-colors touch-manipulation"
+              >
+                <Icon className="size-4" />
+              </a>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

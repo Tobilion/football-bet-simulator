@@ -51,6 +51,24 @@ body {
   scrollbar-width: none;  /* Firefox */
 }
 
+/* Header tab strip: thin visible scrollbar + faded edges so overflow is obvious */
+.scroll-fade {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 12px, black calc(100% - 12px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, black 12px, black calc(100% - 12px), transparent 100%);
+}
+.scroll-fade::-webkit-scrollbar {
+  height: 4px;
+}
+.scroll-fade::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+}
+.scroll-fade::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 /* Glass panel classes */
 .glass-panel {
   background: rgba(22, 26, 35, 0.65);

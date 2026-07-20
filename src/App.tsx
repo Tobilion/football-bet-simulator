@@ -20,6 +20,7 @@ import { Analytics } from "./components/Analytics";
 import { TournamentBracket } from "./components/TournamentBracket";
 import { Leaderboard } from "./components/Leaderboard";
 import { WelcomeScreen } from "./components/WelcomeScreen";
+import { SplashGate } from "./components/SplashGate";
 import { LeagueStandings } from "./components/LeagueStandings";
 import { CasinoSuite } from "./components/CasinoSuite";
 import { VIPStore } from "./components/VIPStore";
@@ -61,10 +62,6 @@ import { CareerProfile } from "./types";
 import { ToastContainer } from "./components/ui/Toast";
 import { OnboardingOverlay } from "./components/OnboardingOverlay";
 
-import SiteFooter from "./components/ui/site-footer";
-// ...
-<SiteFooter />;
-
 export default function App() {
   const [showOnboarding, setShowOnboarding] = useState<boolean>(
     () => localStorage.getItem("cubet_onboarded") !== "true",
@@ -73,12 +70,11 @@ export default function App() {
     parseInt(localStorage.getItem("fs_selected_game_slot") || "1"),
   );
   const [dummyUpdateSlot, setDummyUpdateSlot] = useState(0);
+  // Always null on a fresh page load — every visit goes through the splash
+  // gate + WelcomeScreen save picker rather than auto-resuming silently.
+  // WelcomeScreen preselects the last-used mode/slot so resuming is one click.
   const [gameMode, setGameMode] = useState<"TOURNAMENT" | "LEAGUE" | null>(
-    () =>
-      localStorage.getItem("fs_selected_game_mode") as
-        | "TOURNAMENT"
-        | "LEAGUE"
-        | null,
+    null,
   );
 
   const [activeTab, setActiveTab] = useState("fixtures");
@@ -484,12 +480,14 @@ export default function App() {
     }
   };
 
-  // Brief branded loading splash shown on EVERY app open.
+  // Brief branded loading splash shown on EVERY app open, followed by the
+  // click-through gate screen — both appear before the save-slot picker.
   const [booting, setBooting] = useState(true);
   useEffect(() => {
-    const t = setTimeout(() => setBooting(false), 1600);
+    const t = setTimeout(() => setBooting(false), 900);
     return () => clearTimeout(t);
   }, []);
+  const [gateEntered, setGateEntered] = useState(false);
 
   // 2D spatial-engine (footysim) match viewer state + result apply.
   const [footysim2DId, setFootysim2DId] = useState<string | null>(null);
@@ -598,6 +596,10 @@ export default function App() {
         <style>{`@keyframes loadbar{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}`}</style>
       </div>
     );
+  }
+
+  if (!gateEntered) {
+    return <SplashGate onEnter={() => setGateEntered(true)} />;
   }
 
   if (!gameMode || !userProfile) {

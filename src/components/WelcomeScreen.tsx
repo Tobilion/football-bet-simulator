@@ -1,5 +1,17 @@
 import React, { useState } from "react";
 import { Trophy, Award, Sparkles, User, Coins, Play, ArrowRight, Trash2 } from "lucide-react";
+import { LINKS } from "./ui/site-footer";
+import { getKeysForMode } from "../utils/storage";
+
+// Last mode/slot the player actually entered — read once on mount so the
+// form (and "Last Played" badge below) default to wherever they left off.
+const getLastUsed = (): { mode: "TOURNAMENT" | "LEAGUE"; slot: number } => {
+  const mode =
+    (localStorage.getItem("fs_selected_game_mode") as "TOURNAMENT" | "LEAGUE" | null) ||
+    "TOURNAMENT";
+  const slot = parseInt(localStorage.getItem("fs_selected_game_slot") || "1", 10) || 1;
+  return { mode, slot: slot >= 1 && slot <= 3 ? slot : 1 };
+};
 
 interface WelcomeScreenProps {
   onKickoff: (username: string, startingBalance: number, mode: "TOURNAMENT" | "LEAGUE", slot: number) => void;
@@ -16,10 +28,19 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   resumeActiveMode,
   onDeleteSave
 }) => {
-  const [username, setUsername] = useState<string>("Tobi");
+  const lastUsed = React.useMemo(getLastUsed, []);
+  const [username, setUsername] = useState<string>(() => {
+    try {
+      const cp = localStorage.getItem(getKeysForMode(lastUsed.mode, lastUsed.slot).profile);
+      const savedUsername = cp ? JSON.parse(cp)?.username : null;
+      return typeof savedUsername === "string" && savedUsername ? savedUsername : "Tobi";
+    } catch {
+      return "Tobi";
+    }
+  });
   const [balance, setBalance] = useState<number>(1000);
-  const [mode, setMode] = useState<"TOURNAMENT" | "LEAGUE">("TOURNAMENT");
-  const [selectedSlot, setSelectedSlot] = useState<number>(1);
+  const [mode, setMode] = useState<"TOURNAMENT" | "LEAGUE">(lastUsed.mode);
+  const [selectedSlot, setSelectedSlot] = useState<number>(lastUsed.slot);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{mode: "TOURNAMENT" | "LEAGUE", slot: number} | null>(null);
 
   // Selection presets for starting bankroll budget
@@ -33,7 +54,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   return (
     <div className="h-screen w-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black text-slate-100 overflow-y-auto overflow-x-hidden font-sans select-none relative" id="welcome-gate-screen">
-      <div className="min-h-full w-full flex items-center justify-center p-4 py-12 relative">
+      <div className="min-h-full w-full flex flex-col items-center justify-center gap-4 p-4 py-12 relative">
         {/* Background visual graphics - football pitch subtle glows */}
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-emerald-500/5 blur-[120px] pointer-events-none"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-blue-500/5 blur-[120px] pointer-events-none"></div>
@@ -78,13 +99,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 <div className="grid grid-cols-1 gap-1.5">
                   {[1, 2, 3].map((slot) => {
                     const exists = savedTournaments[slot - 1];
+                    const isLastPlayed = exists && lastUsed.mode === "TOURNAMENT" && lastUsed.slot === slot;
                     return (
-                      <div key={`t-slot-${slot}`} className="flex items-center justify-between p-2 rounded-xl bg-white/2 border border-white/5 text-[11px]">
+                      <div key={`t-slot-${slot}`} className={`flex items-center justify-between p-2 rounded-xl bg-white/2 border text-[11px] ${isLastPlayed ? "border-amber-500/40" : "border-white/5"}`}>
                         <div className="flex items-center gap-2">
                           <span className={`w-1.5 h-1.5 rounded-full ${exists ? "bg-amber-500 animate-pulse" : "bg-slate-700"}`} />
                           <span className="font-bold text-slate-305">Slot {slot}</span>
                           <span className="text-[9px] font-mono text-slate-500">
-                            {exists ? "Active Save" : "Empty Slot"}
+                            {isLastPlayed ? "Last Played" : exists ? "Active Save" : "Empty Slot"}
                           </span>
                         </div>
                         <div className="flex items-center gap-1">
@@ -125,13 +147,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 <div className="grid grid-cols-1 gap-1.5">
                   {[1, 2, 3].map((slot) => {
                     const exists = savedLeagues[slot - 1];
+                    const isLastPlayed = exists && lastUsed.mode === "LEAGUE" && lastUsed.slot === slot;
                     return (
-                      <div key={`l-slot-${slot}`} className="flex items-center justify-between p-2 rounded-xl bg-white/2 border border-white/5 text-[11px]">
+                      <div key={`l-slot-${slot}`} className={`flex items-center justify-between p-2 rounded-xl bg-white/2 border text-[11px] ${isLastPlayed ? "border-blue-400/40" : "border-white/5"}`}>
                         <div className="flex items-center gap-2">
                           <span className={`w-1.5 h-1.5 rounded-full ${exists ? "bg-blue-400 animate-pulse" : "bg-slate-700"}`} />
                           <span className="font-bold text-slate-305">Slot {slot}</span>
                           <span className="text-[9px] font-mono text-slate-500">
-                            {exists ? "Active Save" : "Empty Slot"}
+                            {isLastPlayed ? "Last Played" : exists ? "Active Save" : "Empty Slot"}
                           </span>
                         </div>
                         <div className="flex items-center gap-1">
@@ -324,7 +347,32 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
         </div>
       </div>
-    </div>
+
+      {/* Credit — shown every time the app loads (before entering the app), so it's never blocked by in-game UI */}
+      <div className="z-10 flex items-center gap-2.5 text-[11px] text-slate-500">
+        <span>
+          Built by <span className="font-semibold text-slate-300">Tobiloba Jagun</span>
+        </span>
+        <div className="flex overflow-hidden rounded-lg border border-white/10">
+          {LINKS.map((link) => {
+            const Icon = link.icon;
+            return (
+              <a
+                key={link.label}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={link.label}
+                title={link.label}
+                className="flex h-7 w-8 items-center justify-center bg-white/5 text-slate-300 border-r border-white/10 last:border-r-0 hover:bg-white/10 hover:text-white transition-colors"
+              >
+                <Icon className="size-3.5" />
+              </a>
+            );
+          })}
+        </div>
+      </div>
+      </div>
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmation && (
