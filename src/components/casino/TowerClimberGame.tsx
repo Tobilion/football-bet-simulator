@@ -1,9 +1,7 @@
 import React, { useState } from "react";
 import { GameProps, StakeSlider } from "./shared";
 import { formatMoney } from "../../utils";
-
-const FLOORS = 10;
-const COLS = 3;
+import { TOWER_FLOORS as FLOORS, TOWER_COLS as COLS, TOWER_FLOOR_MULTIPLIERS as FLOOR_MULTIPLIERS } from "./constants";
 
 // Each floor has one safe and two bombs (roughly)
 // On harder floors, more bombs
@@ -15,8 +13,6 @@ function genFloor(floorIdx: number): ("safe"|"bomb")[] {
   bombIdxs.forEach(i => { cells[i] = "bomb"; });
   return cells;
 }
-
-const FLOOR_MULTIPLIERS = [1.4, 2.0, 2.9, 4.1, 6.0, 8.8, 13.0, 19.5, 30.0, 50.0];
 
 export const TowerClimberGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog }) => {
   const [stake, setStake] = useState(() => Math.max(1, Math.min(50, Math.floor(balance))));
@@ -30,7 +26,7 @@ export const TowerClimberGame: React.FC<GameProps> = ({ balance, onUpdateBalance
 
   const startGame = () => {
     if (balance < safeStake) { setMessage("❌ Insufficient balance."); return; }
-    onUpdateBalance(p => Math.max(0, p - safeStake));
+    onUpdateBalance(-safeStake);
     const generatedFloors = Array.from({ length: FLOORS }, (_, i) => genFloor(i));
     setFloors(generatedFloors);
     setCurrentFloor(0); setRevealedFloors([]); setPool(safeStake);
@@ -54,7 +50,7 @@ export const TowerClimberGame: React.FC<GameProps> = ({ balance, onUpdateBalance
       const newPool = safeStake * multi;
       setPool(newPool);
       if (nextFloor >= FLOORS) {
-        onUpdateBalance(p => p + newPool);
+        onUpdateBalance(newPool);
         setPhase("done");
         setMessage(`🏆 TOP FLOOR! ${FLOORS}/${FLOORS} climbed! Win $${formatMoney(newPool)} (${multi}x)!`);
         addLog("Tower Climber", safeStake, multi, "WIN", `Completed all ${FLOORS} floors!`);
@@ -67,7 +63,7 @@ export const TowerClimberGame: React.FC<GameProps> = ({ balance, onUpdateBalance
 
   const cashout = () => {
     if (phase !== "playing" || currentFloor === 0) return;
-    onUpdateBalance(p => p + pool);
+    onUpdateBalance(pool);
     addLog("Tower Climber", safeStake, pool / safeStake, "WIN", `Cashed at floor ${currentFloor}`);
     setMessage(`💰 Cashed out $${formatMoney(pool)} at floor ${currentFloor}/${FLOORS}!`);
     setPhase("done");

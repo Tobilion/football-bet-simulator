@@ -1,0 +1,12 @@
+{
+  "projectName": "CU Bet Simulator",
+  "entries": [
+    { "triggers": ["start dev server", "run locally", "start cu bet"], "type": "command", "action": "npm run dev" },
+    { "triggers": ["run tests", "test simulator", "run test suite"], "type": "command", "action": "npm test" },
+    { "triggers": ["build project", "build cu bet", "production build"], "type": "command", "action": "npm run build" },
+    { "triggers": ["check types", "lint project", "type check"], "type": "command", "action": "npm run lint" },
+    { "triggers": ["git status", "show changes", "what changed"], "type": "command", "action": "git status --short" },
+    { "triggers": ["deploy", "push live", "publish changes"], "type": "command", "action": "git push", "risky": true },
+    { "triggers": ["what is the stack", "describe project"], "type": "answer", "response": "React 19, TypeScript, Vite and Tailwind. Production deployment is triggered by GitHub pushes to Vercel." }
+  ]
+}

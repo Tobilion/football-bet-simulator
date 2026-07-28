@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { GameProps, StakeSlider } from "./shared";
 import { formatMoney } from "../../utils";
+import { DICE_MULTI_OVER_UNDER, DICE_MULTI_EXACT } from "./constants";
 
 export const OverUnderDiceGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog }) => {
   const [stake, setStake] = useState<number>(() => Math.max(1, Math.min(50, Math.floor(balance))));
@@ -17,7 +18,7 @@ export const OverUnderDiceGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
       setCommentary("❌ Insufficient balance.");
       return;
     }
-    onUpdateBalance((prev) => prev - safeStake);
+    onUpdateBalance(-safeStake);
     setRolling(true);
     setCommentary("Rolling dice cups...");
 
@@ -30,22 +31,22 @@ export const OverUnderDiceGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
       setDiceVals([d1, d2]);
 
       let success = false;
-      let multiplier = 2.35;
+      let multiplier = DICE_MULTI_OVER_UNDER;
 
       if (targetMode === "OVER_7") {
         success = sum > 7;
-        multiplier = 2.35;
+        multiplier = DICE_MULTI_OVER_UNDER;
       } else if (targetMode === "UNDER_7") {
         success = sum < 7;
-        multiplier = 2.35;
+        multiplier = DICE_MULTI_OVER_UNDER;
       } else {
         success = sum === 7;
-        multiplier = 5.85;
+        multiplier = DICE_MULTI_EXACT;
       }
 
       if (success) {
         const winVal = safeStake * multiplier;
-        onUpdateBalance((prev) => prev + winVal);
+        onUpdateBalance(winVal);
         setCommentary(`🎉 ${d1} + ${d2} = ${sum} — ${targetMode.replace("_", " ")} HIT! Won $${formatMoney(winVal)} (${multiplier}x)!`);
         addLog("Over/Under Dice", safeStake, multiplier, "WIN", `Sum was ${sum} (Guessed ${targetMode})`);
       } else {
@@ -85,7 +86,7 @@ export const OverUnderDiceGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
       <div className="grid grid-cols-3 gap-2 shrink-0 select-none">
         {(["UNDER_7", "EQUAL_7", "OVER_7"] as const).map(mode => {
           const isActive = targetMode === mode;
-          const multi = mode === "EQUAL_7" ? "5.85x" : "2.35x";
+          const multi = mode === "EQUAL_7" ? `${DICE_MULTI_EXACT}x` : `${DICE_MULTI_OVER_UNDER}x`;
           const label = mode === "UNDER_7" ? "UNDER 7" : mode === "EQUAL_7" ? "EXACTLY 7" : "OVER 7";
           const activeStyle = mode === "UNDER_7"
             ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"

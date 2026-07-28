@@ -192,8 +192,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ fixtures, teams, roundLa
       localStorage.setItem("fs_social_posts", JSON.stringify(updated));
       return updated;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fixtures]);
+  }, [fixtures, setPosts, buildPostForEvent]);
 
   // Fully clear the feed when the match/round changes (new game session) so
   // stale banter from a previous match never lingers.
@@ -204,8 +203,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ fixtures, teams, roundLa
       setPosts(staticFlavorPosts);
     }
     prevRoundRef.current = roundLabel;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roundLabel]);
+  }, [roundLabel, staticFlavorPosts, setPosts]);
 
   const handleCreatePost = (e: React.FormEvent) => {
     e.preventDefault();

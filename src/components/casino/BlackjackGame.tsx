@@ -88,7 +88,7 @@ export const BlackjackGame: React.FC<GameProps> = ({ balance, onUpdateBalance, a
     else if (pVal > dVal) { res = "win"; payout = currentStake * 2; msg = `✅ ${pVal} beats dealer ${dVal}! Win $${formatMoney(payout)}!`; }
     else if (pVal === dVal) { res = "push"; payout = currentStake; msg = `🤝 Push! ${pVal} each. Stake returned.`; }
     else { res = "loss"; msg = `❌ Dealer wins ${dVal} vs your ${pVal}.`; }
-    if (payout > 0) onUpdateBalance(p => p + payout);
+    onUpdateBalance(payout);
     setResult(res); setMessage(msg); setPhase("done");
     addLog("Stadium Blackjack", currentStake, payout > 0 ? payout / currentStake : 0, res === "loss" ? "LOSS" : "WIN", msg.slice(0, 50));
   }, [onUpdateBalance, addLog]);
@@ -98,15 +98,15 @@ export const BlackjackGame: React.FC<GameProps> = ({ balance, onUpdateBalance, a
     const newDeck = shuffle([...buildDeck(),...buildDeck(),...buildDeck(),...buildDeck(),...buildDeck(),...buildDeck()]);
     const pH: Card[] = [newDeck[0], newDeck[2]];
     const dH: Card[] = [newDeck[1], { ...newDeck[3], hidden: true }];
-    onUpdateBalance(p => Math.max(0, p - safeStake));
+    onUpdateBalance(-safeStake);
     const remDeck = newDeck.slice(4);
     setDeck(remDeck); setPlayerHand(pH); setDealerHand(dH); setPhase("playing"); setResult(null); setDoubled(false);
     const pVal = handValue(pH);
     if (pVal === 21) {
       const dReveal = dH.map(c => ({ ...c, hidden: false }));
       setDealerHand(dReveal);
-      if (handValue(dReveal) === 21) { onUpdateBalance(p => p + safeStake); setResult("push"); setMessage("🤝 Both Blackjack — Push!"); addLog("Stadium Blackjack", safeStake, 1, "WIN", "Push both BJ"); setPhase("done"); return; }
-      onUpdateBalance(p => p + safeStake * 2.5); setResult("blackjack"); setMessage(`🃏 BLACKJACK! Win $${formatMoney(safeStake * 2.5)} (3:2)!`); addLog("Stadium Blackjack", safeStake, 2.5, "WIN", "Blackjack 3:2"); setPhase("done"); return;
+      if (handValue(dReveal) === 21) { onUpdateBalance(safeStake); setResult("push"); setMessage("🤝 Both Blackjack — Push!"); addLog("Stadium Blackjack", safeStake, 1, "WIN", "Push both BJ"); setPhase("done"); return; }
+      onUpdateBalance(safeStake * 2.5); setResult("blackjack"); setMessage(`🃏 BLACKJACK! Win $${formatMoney(safeStake * 2.5)} (3:2)!`); addLog("Stadium Blackjack", safeStake, 2.5, "WIN", "Blackjack 3:2"); setPhase("done"); return;
     }
     setMessage(`Your hand: ${pVal} | Dealer shows: ${handValue([dH[0]])}. Hit or Stand?`);
   }, [balance, safeStake, onUpdateBalance, addLog]);
@@ -131,7 +131,7 @@ export const BlackjackGame: React.FC<GameProps> = ({ balance, onUpdateBalance, a
 
   const doubleDown = useCallback(() => {
     if (phase !== "playing" || playerHand.length !== 2 || balance < safeStake) return;
-    onUpdateBalance(p => Math.max(0, p - safeStake)); setDoubled(true);
+    onUpdateBalance(-safeStake); setDoubled(true);
     const newCard = deck[0]; const newHand = [...playerHand, newCard]; const remDeck = deck.slice(1);
     setPlayerHand(newHand); setDeck(remDeck);
     const val = handValue(newHand);

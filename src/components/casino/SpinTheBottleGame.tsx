@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { GameProps, StakeSlider } from "./shared";
 import { formatMoney } from "../../utils";
+import { SPIN_MULTIPLIER } from "./constants";
 
 export const SpinTheBottleGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog }) => {
   const [stake, setStake] = useState<number>(() => Math.max(1, Math.min(50, Math.floor(balance))));
@@ -18,7 +19,7 @@ export const SpinTheBottleGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
       setCommentary("❌ Insufficient balance.");
       return;
     }
-    onUpdateBalance((prev) => prev - safeStake);
+    onUpdateBalance(-safeStake);
     setSpinning(true);
     setResult(null);
     setCommentary("Champagne cork is loose... Spinning the bottle at hyper-speed!");
@@ -54,10 +55,10 @@ export const SpinTheBottleGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
         setCommentary("❄️ UNFORTUNATE! The bottle froze on the center line! You lose your stake! 🏠 HOUSE WINS!!");
         addLog("Spin the Bottle", safeStake, 0, "LOSS", "Center Freeze — you lose");
       } else if (finalRes === betSide) {
-        const payout = safeStake * 1.98;
-        onUpdateBalance((prev) => prev + payout);
-        setCommentary(`🎉 EXCELLENT! Bottle nozzle points ${finalRes}! You won $${formatMoney(payout)} (1.98x)!`);
-        addLog("Spin the Bottle", safeStake, 1.98, "WIN", `Nozzle pointed ${finalRes}`);
+        const payout = safeStake * SPIN_MULTIPLIER;
+        onUpdateBalance(payout);
+        setCommentary(`🎉 EXCELLENT! Bottle nozzle points ${finalRes}! You won $${formatMoney(payout)} (${SPIN_MULTIPLIER}x)!`);
+        addLog("Spin the Bottle", safeStake, SPIN_MULTIPLIER, "WIN", `Nozzle pointed ${finalRes}`);
       } else {
         setCommentary(`💔 MISSED! Nozzle points ${finalRes}, but you backed ${betSide}.`);
         addLog("Spin the Bottle", safeStake, 0, "LOSS", `Nozzle pointed ${finalRes}`);

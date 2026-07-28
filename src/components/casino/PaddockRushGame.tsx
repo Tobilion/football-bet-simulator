@@ -44,7 +44,7 @@ export const PaddockRushGame: React.FC<GameProps> = ({
     stakeRef.current = safeStake;
 
     // Deduct the stake using functional state updates
-    onUpdateBalance((prev) => prev - stakeRef.current);
+    onUpdateBalance(-stakeRef.current);
     setIsLive(true);
     setIsCrashed(false);
     setIsCashedOut(false);
@@ -100,7 +100,7 @@ export const PaddockRushGame: React.FC<GameProps> = ({
     const winVal = stakeRef.current * finalOdds;
 
     // Simply add the win value using functional updater
-    onUpdateBalance((prev) => prev + winVal);
+    onUpdateBalance(winVal);
 
     setCommentary(
       `💰 CASHED OUT at ${finalOdds.toFixed(2)}x! Total return $${formatMoney(winVal)}!`,

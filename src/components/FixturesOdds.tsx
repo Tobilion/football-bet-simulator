@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Fixture, Team, BetSelection, MarketType } from "../types";
 import { TeamCrest } from "./TeamCrest";
 import { Info, X } from "lucide-react";
-import { InfoButton } from "./InfoButton";
+import { InfoButton } from "./ui/InfoButton";
 import { getLiveInPlayOdds } from "../utils";
 import { getTeamForm, getHeadToHead, getTeamGoalAvg } from "../utils/formUtils";
 import { GlowOrb } from "./ui/GlowOrb";

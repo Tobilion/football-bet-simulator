@@ -17,7 +17,7 @@ export function settlePendingTickets(
 ): { finalTickets: BetTicket[]; totalWinPayoutSum: number } {
   let totalWinPayoutSum = 0;
   const finalTickets = tickets.map((ticket) => {
-    if (ticket.status !== "PENDING") return ticket;
+    if (ticket.status !== "PENDING" && ticket.status !== "SETTLING") return ticket;
 
     // Multi-single tickets settle per leg: each winning leg pays its own
     // stake x odds, independent of the other legs.

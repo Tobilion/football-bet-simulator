@@ -12,3 +12,6 @@ MASTER_UPGRADE_PROMPT.md
 BUG_HUNT_PROMPT.md
 BUGS.md
 .kiro/
+
+# Local Project Console chat memory (not for git)
+.console/

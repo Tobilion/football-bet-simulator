@@ -39,7 +39,7 @@ export const SportyMinesGame: React.FC<GameProps> = ({
       return;
     }
     stakeRef.current = safeStake;
-    onUpdateBalance((prev) => prev - stakeRef.current);
+    onUpdateBalance(-stakeRef.current);
     setInGame(true);
     setRoundOver(false);
     setRevealedCount(0);
@@ -97,7 +97,7 @@ export const SportyMinesGame: React.FC<GameProps> = ({
         }));
         setGrid(fullyRevealedGrid);
         const winAmount = stakeRef.current * nextMulti;
-        onUpdateBalance((prev) => prev + winAmount);
+        onUpdateBalance(winAmount);
         setInGame(false);
         setRoundOver(true);
         setCommentary(
@@ -124,7 +124,7 @@ export const SportyMinesGame: React.FC<GameProps> = ({
     const finalPayout = stakeRef.current * finalMulti;
     const fullyRevealedGrid = grid.map((c) => ({ ...c, revealed: true }));
     setGrid(fullyRevealedGrid);
-    onUpdateBalance((prev) => prev + finalPayout);
+    onUpdateBalance(finalPayout);
     setInGame(false);
     setRoundOver(true);
     setCommentary(

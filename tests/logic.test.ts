@@ -2,7 +2,7 @@
  * Pure-logic test suite. Run with: npx tsx tests/logic.test.ts
  */
 import { didSelectionWin, settlePendingTickets } from "../src/utils/betSettlement";
-import { calculateBetBuilderOdds, validateBetBuilderSelections, settleBetBuilderTicket } from "../src/utils/betBuilderUtils";
+import { calculateBetBuilderOdds, validateBetBuilderSelections, settleBetBuilderTicket, computeAccaOdds } from "../src/utils/betBuilderUtils";
 import { calculateCashOutValue, isCashOutEligible } from "../src/utils/cashOutUtils";
 import { calculateImpliedProbability, applyOwnerBoost } from "../src/utils/oddsUtils";
 import * as w from "../src/utils/wallet";
@@ -286,7 +286,6 @@ console.log("betSlipUtils.dedupeForAccumulator");
 
 // acca combined odds = straight product of legs (no hidden discount)
 {
-  const { computeAccaOdds } = require("../src/utils/betBuilderUtils");
   const legs = [1.49, 2.78, 2.0, 3.07, 1.67, 1.72].map((o, i) => ({ fixtureId: `m${i}`, odds: o }));
   const prod = Math.round(legs.reduce((a, l) => a * l.odds, 1) * 100) / 100;
   ok(Math.abs(computeAccaOdds(legs) - prod) < 0.01, `6-leg acca = product of legs (${computeAccaOdds(legs)} ≈ ${prod})`);

@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import { Sparkles } from "lucide-react";
 import { GameProps, StakeSlider } from "./shared";
 import { formatMoney } from "../../utils";
+import { PENALTY_SHOT_MULTIS as SHOT_MULTIS } from "./constants";
 
 export const PenaltyShootoutGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog }) => {
   const [stake, setStake] = useState<number>(() => Math.max(1, Math.min(50, Math.floor(balance))));
@@ -11,8 +12,6 @@ export const PenaltyShootoutGame: React.FC<GameProps> = ({ balance, onUpdateBala
   const [commentary, setCommentary] = useState<string>("Choose target coordinates to release a shot! Beat the keeper for massive 40x multipliers!");
   const [firing, setFiring] = useState<boolean>(false);
   const [lastEvent, setLastEvent] = useState<{ spot: string; saved: boolean } | null>(null);
-
-  const SHOT_MULTIS = [2.5, 6.0, 15.0, 40.0];
 
   const safeStake = Math.max(1, Math.min(stake, Math.max(1, balance)));
   const stakeRef = useRef<number>(safeStake);
@@ -33,7 +32,7 @@ export const PenaltyShootoutGame: React.FC<GameProps> = ({ balance, onUpdateBala
         return;
       }
       stakeRef.current = safeStake;
-      onUpdateBalance((prev) => prev - safeStake);
+      onUpdateBalance(-safeStake);
       setInGame(true);
       setRoundsCount(1);
       setCurrentMulti(1.0);
@@ -59,7 +58,7 @@ export const PenaltyShootoutGame: React.FC<GameProps> = ({ balance, onUpdateBala
 
         if (roundsCount >= 4) {
           const finalVal = stakeRef.current * 40.0;
-          onUpdateBalance((prev) => prev + finalVal);
+          onUpdateBalance(finalVal);
           setInGame(false);
           setCommentary(`🏆 SHOT-MASTER! 4 goals in a row! Maximum payout $${formatMoney(finalVal)} (40.0x Jackpot)!`);
           addLog("Penalty Shootout", stakeRef.current, 40.0, "WIN", "Cleared 4 rounds penalty streak!");
@@ -75,7 +74,7 @@ export const PenaltyShootoutGame: React.FC<GameProps> = ({ balance, onUpdateBala
   const handleCashout = () => {
     if (!inGame || roundsCount <= 1 || firing) return;
     const winVal = stakeRef.current * currentMulti;
-    onUpdateBalance((prev) => prev + winVal);
+    onUpdateBalance(winVal);
     setInGame(false);
     setCommentary(`💰 CASHED OUT! Secured $${formatMoney(winVal)} at ${currentMulti}x!`);
     addLog("Penalty Shootout", stakeRef.current, currentMulti, "WIN", `Safe Cashout after ${roundsCount - 1} goals`);

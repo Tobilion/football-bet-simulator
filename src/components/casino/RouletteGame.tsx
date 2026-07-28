@@ -57,7 +57,7 @@ export const RouletteGame: React.FC<GameProps> = ({ balance, onUpdateBalance, ad
 
   const spin = () => {
     if (spinning || balance < safeStake) { setMessage("❌ Insufficient balance."); return; }
-    onUpdateBalance(p => Math.max(0, p - safeStake));
+    onUpdateBalance(-safeStake);
     setSpinning(true); setResult(null); setMessage("🎡 Spinning...");
     const winNum = Math.floor(Math.random() * 37);
     const extraSpins = 5 + Math.floor(Math.random() * 5);
@@ -70,7 +70,7 @@ export const RouletteGame: React.FC<GameProps> = ({ balance, onUpdateBalance, ad
       const won = checkWin(selectedBet, winNum);
       if (won) {
         const payout = safeStake * selectedBet.payout;
-        onUpdateBalance(p => p + payout);
+        onUpdateBalance(payout);
         setMessage(`✅ ${winNum}! ${selectedBet.label} wins! +$${formatMoney(payout)} (${selectedBet.payout}x)`);
         addLog("Stadium Roulette", safeStake, selectedBet.payout, "WIN", `${winNum} — ${selectedBet.label}`);
       } else {

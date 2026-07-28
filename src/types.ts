@@ -284,7 +284,7 @@ export interface BetTicket {
   totalOdds: number;
   stake: number;
   potentialPayout: number;
-  status: "PENDING" | "WON" | "LOST" | "VOID" | "CASHED_OUT";
+  status: "PENDING" | "SETTLING" | "WON" | "LOST" | "VOID" | "CASHED_OUT";
   timestamp: number;
   // For single mode: maps selection key (fixtureId-marketType-selectionId) to individual stake
   selectionStakes?: { [selId: string]: number };

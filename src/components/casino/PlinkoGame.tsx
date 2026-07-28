@@ -1,23 +1,13 @@
 import React, { useState } from "react";
 import { GameProps, StakeSlider } from "./shared";
 import { formatMoney } from "../../utils";
+import { PLINKO_BINS as bins } from "./constants";
 
 export const PlinkoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog }) => {
   const [stake, setStake] = useState<number>(() => Math.max(1, Math.min(50, Math.floor(balance))));
   const [dropping, setDropping] = useState<boolean>(false);
   const [pegPath, setPegPath] = useState<number[]>([]);
   const [commentary, setCommentary] = useState<string>("Drop a golden chip down the triangle pegboard into payout bins!");
-
-  const bins = [
-    { multi: 15.0, label: "15x", color: "bg-red-500/20 border-red-500/40 text-red-400" },
-    { multi: 2.0, label: "2x", color: "bg-amber-500/20 border-amber-500/40 text-amber-400" },
-    { multi: 1.0, label: "1x", color: "bg-emerald-500/20 border-emerald-500/40 text-emerald-400" },
-    { multi: 0.36, label: "0.36x", color: "bg-slate-700/30 border-white/5 text-slate-400" },
-    { multi: 0.36, label: "0.36x", color: "bg-slate-700/30 border-white/5 text-slate-400" },
-    { multi: 1.0, label: "1x", color: "bg-emerald-500/20 border-emerald-500/40 text-emerald-400" },
-    { multi: 2.0, label: "2x", color: "bg-amber-500/20 border-amber-500/40 text-amber-400" },
-    { multi: 15.0, label: "15x", color: "bg-red-500/20 border-red-500/40 text-red-400" }
-  ];
 
   const safeStake = Math.max(1, Math.min(stake, Math.max(1, balance)));
 
@@ -27,7 +17,7 @@ export const PlinkoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addL
       setCommentary("❌ Insufficient balance.");
       return;
     }
-    onUpdateBalance((prev) => prev - safeStake);
+    onUpdateBalance(-safeStake);
     setDropping(true);
     setPegPath([]);
     setCommentary("Chip is bouncing on the pegboard... watch the drift!");
@@ -50,7 +40,7 @@ export const PlinkoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addL
         const binIdx = Math.min(7, rightBouncesCount);
         const hitBin = bins[binIdx];
         const winPayout = safeStake * hitBin.multi;
-        onUpdateBalance((prev) => prev + winPayout);
+        onUpdateBalance(winPayout);
 
         setCommentary(`💎 Landed in ${hitBin.label} bin! Return: $${formatMoney(winPayout)}`);
         addLog("Golden Boot Plinko", hitBin.multi >= 1.0 ? safeStake : safeStake * (1 - hitBin.multi), hitBin.multi, hitBin.multi >= 1.0 ? "WIN" : "LOSS", `Landed in ${hitBin.label} slot`);

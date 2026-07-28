@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Team, MatchEvent } from "../types";
-import { simulateFixtureFootysim, FootysimMatch } from "../engine/footysimBridge";
+import type { FootysimMatch } from "../engine/footysimBridge";
 import { FootballPitch2D, Frame } from "./FootballPitch2D";
 import { TeamCrest } from "./TeamCrest";
 import { cleanPlayerName } from "../utils/playerUtils";
@@ -26,15 +26,21 @@ export const FootysimMatchViewer: React.FC<Props> = ({ homeTeam, awayTeam, seed,
   const applied = useRef(false);
   const shownGoalKeys = useRef<Set<string>>(new Set());
 
-  // Simulate up front (deferred one tick so "Simulating…" paints).
+  // Simulate in a web worker (keeps the UI responsive).
   useEffect(() => {
-    const id = setTimeout(() => {
-      setMatch(simulateFixtureFootysim(homeTeam, awayTeam, seed, { knockout }));
+    const worker = new Worker(new URL("../engine/footysimWorker.ts", import.meta.url));
+    worker.postMessage({ homeTeam, awayTeam, seed, knockout });
+    worker.onmessage = (e: MessageEvent<FootysimMatch>) => {
+      setMatch(e.data);
       setPhase("playing");
-    }, 30);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      worker.terminate();
+    };
+    worker.onerror = () => {
+      setPhase("done");
+      worker.terminate();
+    };
+    return () => worker.terminate();
+  }, [homeTeam, awayTeam, seed, knockout]);
 
   // Frame playback.
   useEffect(() => {
@@ -68,8 +74,7 @@ export const FootysimMatchViewer: React.FC<Props> = ({ homeTeam, awayTeam, seed,
         return () => clearTimeout(t);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shownEvents.length]);
+  }, [shownEvents, setGoalFlash]);
 
   // Record the result once the match reaches full time (so it's always saved).
   useEffect(() => {
@@ -77,8 +82,7 @@ export const FootysimMatchViewer: React.FC<Props> = ({ homeTeam, awayTeam, seed,
       applied.current = true;
       onApply(match);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, match]);
+  }, [phase, match, onApply]);
 
   const skipToResult = () => { if (match) { setIdx(match.frames.length - 1); setPhase("done"); setPlaying(false); } };
   const teamName = (id: string) => (id === homeTeam.id ? homeTeam.name : awayTeam.name);

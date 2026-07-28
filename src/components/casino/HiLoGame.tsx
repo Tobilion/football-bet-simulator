@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { GameProps, StakeSlider } from "./shared";
 import { formatMoney } from "../../utils";
+import { HILO_HOUSE_EDGE as HOUSE_EDGE, HILO_MAX_STEPS as MAX_STEPS } from "./constants";
 
 type Suit = "♠" | "♥" | "♦" | "♣";
 type CardVal = "A"|"2"|"3"|"4"|"5"|"6"|"7"|"8"|"9"|"10"|"J"|"Q"|"K";
@@ -15,8 +16,6 @@ function randomCard(): Card { return { val: VALS[Math.floor(Math.random()*13)], 
 // House edge kept at 3% (RTP ~97%). Multipliers are DERIVED from the current card's real
 // win probability, so no card/direction is ever +EV — every step returns 0.97 on average.
 // Ties lose. With 13 ranks: strictly-higher count = 13 - rank, strictly-lower count = rank - 1.
-const HOUSE_EDGE = 0.97;
-const MAX_STEPS = 8;
 const higherCount = (rank: number) => 13 - rank;
 const lowerCount = (rank: number) => rank - 1;
 const stepMulti = (count: number) => (count > 0 ? (HOUSE_EDGE * 13) / count : 0);
@@ -39,7 +38,7 @@ export const HiLoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog
 
   const startGame = () => {
     if (balance < safeStake) { setMessage("❌ Insufficient balance."); return; }
-    onUpdateBalance(p => Math.max(0, p - safeStake));
+    onUpdateBalance(-safeStake);
     const card = randomCard();
     setCurrentCard(card); setStreak(0); setPool(safeStake); setPhase("playing");
     setMessage(`Current card: ${card.val}${card.suit}. Higher or Lower? (payout scales with the odds)`);
@@ -64,7 +63,7 @@ export const HiLoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog
       const newPool = pool * multi;
       setCurrentCard(next); setStreak(newStreak); setPool(newPool);
       if (newStreak >= MAX_STEPS) {
-        onUpdateBalance(p => p + newPool);
+        onUpdateBalance(newPool);
         addLog("Hi-Lo Ladder", safeStake, newPool / safeStake, "WIN", `Max streak! ${next.val}${next.suit}`);
         setMessage(`🏆 MAX STREAK! ${MAX_STEPS} correct! You win $${formatMoney(newPool)} (${(newPool/safeStake).toFixed(2)}x)!`);
         setPhase("done"); setResolving(false); return;
@@ -76,7 +75,7 @@ export const HiLoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog
 
   const cashout = () => {
     if (phase !== "playing" || streak === 0) return;
-    onUpdateBalance(p => p + pool);
+    onUpdateBalance(pool);
     addLog("Hi-Lo Ladder", safeStake, pool / safeStake, "WIN", `Cashed out at streak ${streak}`);
     setMessage(`💰 Cashed out $${formatMoney(pool)} after ${streak} correct guesses!`);
     setPhase("done");

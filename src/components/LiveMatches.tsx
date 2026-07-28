@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Fixture, Team, BetSelection } from "../types";
 import { calculateMOTM } from "../utils/motmUtils";
 import { computeMatchRatings, ratingColorClass } from "../utils/playerRatingUtils";
@@ -230,7 +230,7 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
   };
 
   return (
-    <div className="flex-1 min-height-0 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 no-scrollbar relative max-h-none animate-fade-in">
+    <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 no-scrollbar relative max-h-none animate-fade-in">
       
       {/* Simulation Ribbon */}
       <div className="glass-panel rounded-2xl p-4.5 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
@@ -400,7 +400,7 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
       </div>
 
       {/* Main Grid: Left is Simulcast Cards list, Right is Showcase Match stats detail */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 min-height-0">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 min-h-0">
         
         {/* Match Cards Simulcast List */}
         <div className="xl:col-span-7 space-y-3">
@@ -634,11 +634,14 @@ export const LiveMatches: React.FC<LiveMatchesProps> = ({
               if (!selectedFixture) return null;
               const hId = selectedFixture.homeTeamId;
               const aId = selectedFixture.awayTeamId;
-              const homeForm = getTeamForm(hId, fixtures);
-              const awayForm = getTeamForm(aId, fixtures);
-              const h2h = getHeadToHead(hId, aId, fixtures);
-              const homeAvg = getTeamGoalAvg(hId, fixtures);
-              const awayAvg = getTeamGoalAvg(aId, fixtures);
+              const formH2H = useMemo(() => ({
+                homeForm: getTeamForm(hId, fixtures),
+                awayForm: getTeamForm(aId, fixtures),
+                h2h: getHeadToHead(hId, aId, fixtures),
+                homeAvg: getTeamGoalAvg(hId, fixtures),
+                awayAvg: getTeamGoalAvg(aId, fixtures),
+              }), [hId, aId, fixtures]);
+              const { homeForm, awayForm, h2h, homeAvg, awayAvg } = formH2H;
               const dot = (r: "W"|"D"|"L", i: number) => (
                 <span key={i} className={`w-4 h-4 rounded-full text-[7px] font-black flex items-center justify-center ${r==="W"?"bg-emerald-500 text-white":r==="D"?"bg-yellow-500 text-black":"bg-red-500 text-white"}`}>{r}</span>
               );

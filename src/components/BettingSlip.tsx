@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { computeAccaOdds } from "../utils/betBuilderUtils";
-import { dedupeForAccumulator } from "../utils/betSlipUtils";
+import { dedupeForAccumulator, validateSinglesNoArbitrage } from "../utils/betSlipUtils";
 import { BetSelection, Fixture, Team, MarketType } from "../types";
 import { formatMoney } from "../utils";
 import { Sparkles, Check, ChevronDown, ChevronUp } from "lucide-react";
@@ -157,8 +157,7 @@ export const BettingSlip: React.FC<BettingSlipProps> = ({
         `Removed ${dropped.length} conflicting pick${dropped.length > 1 ? "s" : ""}: an accumulator can't combine two outcomes from the same market of one match. Use SINGLES for that.`,
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [betMode, selections]);
+    }, [betMode, selections, onRemoveSelection, setErrorMessage]);
 
   // #3 - distribute a single amount across the singles in the slip.
   const applyStakeDistribution = (mode: "split" | "same") => {
@@ -231,6 +230,8 @@ export const BettingSlip: React.FC<BettingSlipProps> = ({
     }
 
     if (betMode === "SINGLE") {
+      const arbError = validateSinglesNoArbitrage(selections);
+      if (arbError) { setErrorMessage(arbError); return; }
       // Find all selections with valid stakes
       const parsedStakes: { [key: string]: number } = {};
       let totalAmountRequired = 0;

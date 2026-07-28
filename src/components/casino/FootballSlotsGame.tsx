@@ -1,12 +1,8 @@
 import React, { useState } from "react";
 import { GameProps, StakeSlider } from "./shared";
 import { formatMoney } from "../../utils";
+import { SLOTS_REEL_WEIGHTS as REEL_WEIGHTS, SLOTS_TRIPLE_PAY as TRIPLE_PAY, SLOTS_PAIR_PAY as PAIR_PAY, SLOTS_REEL_SYMS as REEL_SYMS } from "./constants";
 
-// Weighted reels: premium symbols (Cup/Boot/Ball) are rare and pay; Whistle/Card are blanks.
-const REEL_WEIGHTS: Record<string, number> = { Cup: 4, Boot: 12, Ball: 18, Whistle: 20, Card: 26 };
-const TRIPLE_PAY: Record<string, number> = { Cup: 100, Boot: 50, Ball: 30, Whistle: 0, Card: 0 };
-const PAIR_PAY: Record<string, number> = { Cup: 4, Boot: 3, Ball: 2, Whistle: 0, Card: 0 };
-const REEL_SYMS = ["Cup", "Boot", "Ball", "Whistle", "Card"];
 const REEL_TOTAL = REEL_SYMS.reduce((a, s) => a + REEL_WEIGHTS[s], 0);
 function spinReel(): string {
   let r = Math.random() * REEL_TOTAL;
@@ -31,7 +27,7 @@ export const FootballSlotsGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
       setCommentary("❌ Insufficient balance.");
       return;
     }
-    onUpdateBalance((prev) => prev - safeStake);
+    onUpdateBalance(-safeStake);
     setSpinning(true);
     setCommentary("Football slot reels are rotating fast...");
 
@@ -50,12 +46,12 @@ export const FootballSlotsGame: React.FC<GameProps> = ({ balance, onUpdateBalanc
 
       if (tripleMulti > 0) {
         const winVal = safeStake * tripleMulti;
-        onUpdateBalance((prev) => prev + winVal);
+        onUpdateBalance(winVal);
         setCommentary(`🎉 MEGA WIN! 3×${r1}! Won $${formatMoney(winVal)} (${tripleMulti}x)!`);
         addLog("Football Slots", safeStake, tripleMulti, "WIN", `Hit 3 of a kind: ${r1}`);
       } else if (matchedSym && pairMulti > 0) {
         const winVal = safeStake * pairMulti;
-        onUpdateBalance((prev) => prev + winVal);
+        onUpdateBalance(winVal);
         setCommentary(`🎉 WIN! Two-of-a-kind ${matchedSym}! Won $${formatMoney(winVal)} (${pairMulti}x)!`);
         addLog("Football Slots", safeStake, pairMulti, "WIN", `Matched 2: ${matchedSym}`);
       } else {

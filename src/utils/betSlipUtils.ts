@@ -3,7 +3,7 @@ import { BetSelection, MarketType } from "../types";
 // Match-result markets are all the same mutually-exclusive outcome group:
 // you can't win both "Home Win" and "Away Win", nor pair them with a
 // double-chance / exact-score pick for the same match inside one accumulator.
-const RESULT_MARKETS: MarketType[] = ["MATCH_WINNER", "DOUBLE_CHANCE", "EXACT_SCORE"];
+export const RESULT_MARKETS: MarketType[] = ["MATCH_WINNER", "DOUBLE_CHANCE", "EXACT_SCORE"];
 
 /**
  * Key identifying the mutually-exclusive market group a selection belongs to.
@@ -42,4 +42,21 @@ export function dedupeForAccumulator(selections: BetSelection[]): {
     else dropped.push(sel);
   });
   return { kept, dropped };
+}
+
+export function validateSinglesNoArbitrage(selections: BetSelection[]): string | null {
+  const byFixture = new Map<string, Set<string>>();
+  selections.forEach((s) => {
+    if (RESULT_MARKETS.includes(s.marketType)) {
+      const set = byFixture.get(s.fixtureId) ?? new Set();
+      set.add(s.selectionId);
+      byFixture.set(s.fixtureId, set);
+    }
+  });
+  for (const [fixtureId, outcomes] of byFixture) {
+    if (outcomes.size > 1) {
+      return `Arbitrage: multiple outcomes for the same match. Use Accumulator (auto-dedupes) or pick one.`;
+    }
+  }
+  return null;
 }

@@ -9,8 +9,8 @@ import {
   generateTipsterBetsForRound,
   resolveTipsterRound,
 } from "../data/tipsters";
-import { persistStateToCache } from "../utils/storage";
-import { resolveTransferAuctions, applyTransferResultsToTeams } from "../engine/transferEngine";
+import { persistStateToCache, getKeysForMode } from "../utils/storage";
+import { resolveTransferAuctions, applyTransferResultsToTeams, applyUserWinsToOwnedTeam } from "../engine/transferEngine";
 import { settleBetBuilderTicket } from "../utils/betBuilderUtils";
 import { calculateMOTM } from "../utils/motmUtils";
 import { addToast } from "../hooks/useToast";
@@ -159,6 +159,8 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
         userBids,
       );
       resolvedTransferListings = resolvedListings;
+      // Apply user wins FIRST (before AI transfers strip the source team)
+      updatedTeamsList = applyUserWinsToOwnedTeam(updatedTeamsList, resolvedListings, userProfile.ownedTeamId);
       updatedTeamsList = applyTransferResultsToTeams(updatedTeamsList, resolvedListings, userProfile.ownedTeamId);
       toastMsg = toastMessage;
       setTransferListings(resolvedListings.map((l) => ({
@@ -169,22 +171,49 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
       if (toastMsg) { onTransferToast(toastMsg); addToast({ type: "transfer", title: "🔄 Transfer", message: toastMsg, duration: 6000 }); }
     }
 
-    // 2. Evaluate user pending tickets
-    const { finalTickets, totalWinPayoutSum } = settlePendingTickets(
-      userProfile.tickets,
-      completedFixtures,
-    );
-
-    // 2a. Toast won/lost regular tickets
-    finalTickets.forEach((ticket, idx) => {
-      if (userProfile.tickets[idx]?.status === "PENDING") {
-        if (ticket.status === "WON") {
-          addToast({ type: "win", title: "🏆 Ticket Won!", message: `+$${(ticket.settledPayout ?? ticket.potentialPayout).toFixed(2)} payout`, duration: 5000 });
-        } else if (ticket.status === "LOST") {
-          addToast({ type: "loss", title: "Ticket Lost", message: `-$${ticket.stake.toFixed(2)} stake lost`, duration: 3000 });
+    // 2. Evaluate user pending tickets — re-read from localStorage to avoid
+    // double-settling tickets already processed by the auto-settle effect.
+    const keys = gameMode ? getKeysForMode(gameMode, activeSlot) : null;
+    let ticketsForSettlement = userProfile.tickets;
+    let autoSettled = false;
+    if (keys) {
+      try {
+        const raw = localStorage.getItem(keys.profile);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const storedProfile: Profile | null = parsed && typeof parsed === "object" && "data" in parsed ? parsed.data : parsed;
+          if (storedProfile?.tickets) {
+            // If any ticket matching completed fixtures is SETTLING or already
+            // resolved, the auto-settle has handled it — skip settlement.
+            const hasActive = storedProfile.tickets.some(
+              (t: BetTicket) => t.status === "PENDING" || t.status === "SETTLING",
+            );
+            if (!hasActive) autoSettled = true;
+            ticketsForSettlement = storedProfile.tickets;
+          }
         }
-      }
-    });
+      } catch { /* fallback to closure tickets */ }
+    }
+    let totalWinPayoutSum = 0;
+    let finalTickets: BetTicket[] = ticketsForSettlement;
+    if (!autoSettled) {
+      const settled = settlePendingTickets(ticketsForSettlement, completedFixtures);
+      finalTickets = settled.finalTickets;
+      totalWinPayoutSum = settled.totalWinPayoutSum;
+    }
+
+    // 2a. Toast won/lost regular tickets (only for newly settled tickets)
+    if (!autoSettled) {
+      finalTickets.forEach((ticket, idx) => {
+        if (ticketsForSettlement[idx]?.status === "PENDING") {
+          if (ticket.status === "WON") {
+            addToast({ type: "win", title: "🏆 Ticket Won!", message: `+$${(ticket.settledPayout ?? ticket.potentialPayout).toFixed(2)} payout`, duration: 5000 });
+          } else if (ticket.status === "LOST") {
+            addToast({ type: "loss", title: "Ticket Lost", message: `-$${ticket.stake.toFixed(2)} stake lost`, duration: 3000 });
+          }
+        }
+      });
+    }
 
         // 2b. Settle BetBuilder tickets
     let bbPayoutSum = 0;

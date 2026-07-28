@@ -1,17 +1,9 @@
 import React, { useState } from "react";
 import { GameProps, StakeSlider } from "./shared";
 import { formatMoney } from "../../utils";
+import { SCRATCH_PRIZE_TABLE as PRIZE_TABLE, SCRATCH_PLANT_PROB as PLANT_PROB, SCRATCH_WIN_WEIGHTS as WIN_WEIGHTS } from "./constants";
 
 const SYMBOLS = ["⚽","🏆","🥅","🎽","👟","🥋","🎯","💎","👑","⭐"];
-// Prize table: match 3 of a symbol → prize multiplier
-const PRIZE_TABLE: Record<string,number> = { "💎": 50, "👑": 30, "⭐": 20, "🏆": 10, "⚽": 5, "🥅": 3, "🎯": 2, "🎽": 1.5, "👟": 1, "🥋": 0 };
-
-// House-edge tuned: a card wins with PLANT_PROB, and the winning symbol is drawn from a
-// weighted pool (jackpots rare, small prizes common). Cards are generated so NO symbol ever
-// reaches 3 by accident — the only possible triple is the intentionally planted one.
-// RTP = PLANT_PROB * weightedMean(prize) ≈ 0.335 * 2.84 ≈ 0.951.
-const PLANT_PROB = 0.335;
-const WIN_WEIGHTS: Record<string, number> = { "💎":1, "👑":2, "⭐":4, "🏆":10, "⚽":20, "🥅":40, "🎯":60, "🎽":70, "👟":80 };
 const WIN_SYMS = Object.keys(WIN_WEIGHTS);
 const WIN_TOTAL = WIN_SYMS.reduce((a, s) => a + WIN_WEIGHTS[s], 0);
 
@@ -71,7 +63,7 @@ export const ScratchCardGame: React.FC<GameProps> = ({ balance, onUpdateBalance,
 
   const buyCard = () => {
     if (balance < safeStake) { setMessage("❌ Insufficient balance."); return; }
-    onUpdateBalance(p => Math.max(0, p - safeStake));
+    onUpdateBalance(-safeStake);
     const newCard = genCard();
     setCard(newCard); setRevealed(Array(9).fill(false));
     setPhase("scratching"); setMessage("Tap cells to scratch!");
@@ -85,7 +77,7 @@ export const ScratchCardGame: React.FC<GameProps> = ({ balance, onUpdateBalance,
       setPhase("done");
       if (prize && prize.multiplier > 0) {
         const payout = safeStake * prize.multiplier;
-        onUpdateBalance(p => p + payout);
+        onUpdateBalance(payout);
         setMessage(`🎉 ${prize.symbol} x${prize.count}! WIN $${formatMoney(payout)} (${prize.multiplier}x)!`);
         addLog("Scratch & Score", safeStake, prize.multiplier, "WIN", `${prize.symbol} triple match`);
       } else {
@@ -105,7 +97,7 @@ export const ScratchCardGame: React.FC<GameProps> = ({ balance, onUpdateBalance,
     setPhase("done");
     if (prize && prize.multiplier > 0) {
       const payout = safeStake * prize.multiplier;
-      onUpdateBalance(p => p + payout);
+      onUpdateBalance(payout);
       setMessage(`🎉 ${prize.symbol} x${prize.count}! WIN $${formatMoney(payout)} (${prize.multiplier}x)!`);
       addLog("Scratch & Score", safeStake, prize.multiplier, "WIN", `${prize.symbol} triple`);
     } else {

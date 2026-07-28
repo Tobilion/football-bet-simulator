@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Team, Fixture, Profile, MatchEvent } from "../types";
 import { simulateMatchTick, simulateFullMatchInstantly } from "../engine/matchEngine";
 import { getKeysForMode } from "../utils/storage";
+import { debounce } from "../utils/debounce";
 import { addToast } from "../hooks/useToast";
 
 interface UseSimulationDeps {
@@ -40,6 +41,11 @@ export function useSimulation(deps: UseSimulationDeps) {
     }
   };
 
+  const saveFixturesDebounced = useMemo(() => debounce(saveFixtures, 2000), [gameMode, activeSlot]);
+
+  // Cleanup debounce on unmount
+  useEffect(() => () => saveFixturesDebounced.cancel(), [saveFixturesDebounced]);
+
   const fireGoalToasts = (prevEvents: MatchEvent[], nextEvents: MatchEvent[]) => {
     nextEvents.slice(prevEvents.length).forEach((ev) => {
       if (ev.type === "GOAL") {
@@ -59,7 +65,7 @@ export function useSimulation(deps: UseSimulationDeps) {
   const commit = (updatedList: Fixture[]) => {
     fixturesRef.current = updatedList;
     setFixtures(updatedList);
-    saveFixtures(updatedList);
+    saveFixturesDebounced(updatedList);
   };
 
   const advanceWatchedByOneTick = (watchedId: string): "advanced" | "stopped" => {

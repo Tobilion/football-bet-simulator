@@ -41,7 +41,7 @@ export function isCashOutEligible(ticket: BetTicket, fixtures: Fixture[]): boole
  * For each leg:
  *   - FT + WON  → factor 1.0 (locked in, full odds realised)
  *   - FT + LOST → dead ticket, returns 0
- *   - LIVE      → factor = originalOdds / currentOdds (risk-adjusted)
+ *   - LIVE      → factor = 1 / currentOdds (risk-adjusted; potentialPayout already embeds original odds)
  *   - SCHEDULED → factor 1.0 (not yet started)
  *
  * cashOut = potentialPayout × ∏(factors) × 0.92 (8% book margin)

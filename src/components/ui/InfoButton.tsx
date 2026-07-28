@@ -3,13 +3,40 @@ import { Info, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface InfoButtonProps {
-  title: string;
-  body: React.ReactNode;
+  title?: string;
+  body?: React.ReactNode;
+  /** When set, renders an inline tooltip instead of a full modal */
+  text?: string;
 }
 
-export const InfoButton: React.FC<InfoButtonProps> = ({ title, body }) => {
+export const InfoButton: React.FC<InfoButtonProps> = ({ title, body, text }) => {
   const [isOpen, setIsOpen] = useState(false);
 
+  // Inline tooltip mode (when `text` is provided)
+  if (text !== undefined) {
+    return (
+      <div className="relative inline-flex items-center">
+        <button
+          onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+          className="text-slate-500 hover:text-slate-300 transition-colors p-1"
+          title="Tap for information"
+        >
+          <Info size={14} />
+        </button>
+        {isOpen && (
+          <div className="absolute top-6 left-0 z-50 w-48 p-2 text-xs text-white bg-slate-800 border border-slate-600 rounded-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-1">
+              <span className="font-bold text-emerald-400">Info</span>
+              <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white"><X size={12} /></button>
+            </div>
+            <p className="leading-tight text-slate-300">{text}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Modal mode (default)
   return (
     <>
       <button

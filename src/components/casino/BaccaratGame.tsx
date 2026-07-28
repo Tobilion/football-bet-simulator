@@ -36,7 +36,7 @@ export const BaccaratGame: React.FC<GameProps> = ({ balance, onUpdateBalance, ad
 
   const deal = () => {
     if (balance < safeStake) { setMessage("❌ Insufficient balance."); return; }
-    onUpdateBalance(p => Math.max(0, p - safeStake));
+    onUpdateBalance(-safeStake);
     setPhase("dealing");
 
     // Initial 2 cards each
@@ -80,7 +80,7 @@ export const BaccaratGame: React.FC<GameProps> = ({ balance, onUpdateBalance, ad
       msg = `❌ ${winner === "player" ? `Player ${pPt}` : `Banker ${bPt}`} wins. You bet ${betSide}. Lost $${formatMoney(safeStake)}.`;
     }
 
-    if (payout > 0) onUpdateBalance(p => p + payout);
+    onUpdateBalance(payout);
     setMessage(msg); setPhase("done");
     addLog("Baccarat Royale", safeStake, payout > 0 ? payout / safeStake : 0, status, msg.slice(0, 50));
   };

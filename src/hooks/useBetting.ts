@@ -194,22 +194,35 @@ export function useBetting(deps: UseBettingDeps) {
     const ftFixtures = fixtures.filter((f) => f.status === "FT");
     if (ftFixtures.length === 0) return;
 
-    const settleable = userProfile.tickets.some(
-      (t) =>
-        t.status === "PENDING" &&
-        t.selections.every((sel) =>
-          ftFixtures.some((f) => f.id === sel.fixtureId),
-        ),
-    );
-    if (!settleable) return;
+    const settleableIds = userProfile.tickets
+      .filter(
+        (t) =>
+          t.status === "PENDING" &&
+          t.selections.every((sel) =>
+            ftFixtures.some((f) => f.id === sel.fixtureId),
+          ),
+      )
+      .map((t) => t.id);
+    if (settleableIds.length === 0) return;
 
+    // Mark SETTLING: transient status that prevents double settlement if the
+    // round-advance effect fires before the async setState batch settles.
+    const markingTickets = userProfile.tickets.map((t) =>
+      settleableIds.includes(t.id) ? { ...t, status: "SETTLING" as const } : t,
+    );
+    // Optimistically persist the SETTLING state
+    const markingProfile: Profile = { ...userProfile, tickets: markingTickets };
+    setUserProfile(markingProfile);
+    persist(markingProfile);
+
+    // NOW settle the marked tickets
     const { finalTickets, totalWinPayoutSum } = settlePendingTickets(
-      userProfile.tickets,
+      markingTickets,
       ftFixtures,
     );
 
     finalTickets.forEach((ticket, idx) => {
-      if (userProfile.tickets[idx]?.status === "PENDING" && ticket.status !== "PENDING") {
+      if (markingTickets[idx]?.status === "SETTLING" && ticket.status !== "SETTLING") {
         if (ticket.status === "WON") {
           addToast({ type: "win", title: "🏆 Ticket Won!", message: `+$${(ticket.settledPayout ?? ticket.potentialPayout).toFixed(2)} payout`, duration: 5000 });
         } else if (ticket.status === "LOST") {

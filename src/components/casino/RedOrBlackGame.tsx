@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import { RefreshCw } from "lucide-react";
 import { GameProps, StakeSlider } from "./shared";
 import { formatMoney } from "../../utils";
+import { REDBLACK_ROUND_MULTIS as ROUND_MULTIS } from "./constants";
 
 export const RedOrBlackGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog }) => {
   const [stake, setStake] = useState<number>(() => Math.max(1, Math.min(50, Math.floor(balance))));
@@ -12,8 +13,7 @@ export const RedOrBlackGame: React.FC<GameProps> = ({ balance, onUpdateBalance, 
   const [lastDraw, setLastDraw] = useState<"RED" | "BLACK" | "JOKER" | null>(null);
   const [message, setMessage] = useState<string>("Choose Red or Black to begin a 4-round streak! Beware of the 2% Joker card.");
 
-  const ROUND_MULTIS = [2.0, 4.0, 8.2, 16.8];
-  const ROUND_LABELS_MULTI = ["2.0x", "4.0x", "8.2x", "16.8x"];
+  const ROUND_LABELS_MULTI = ROUND_MULTIS.map((m) => `${m}x`);
 
   const originalWagerRef = useRef<number>(0);
   const currentRoundRef = useRef<number>(0);
@@ -54,7 +54,7 @@ export const RedOrBlackGame: React.FC<GameProps> = ({ balance, onUpdateBalance, 
         currentPoolRef.current = newPool;
 
         if (thisRound >= 4) {
-          onUpdateBalance((prev) => prev + newPool);
+          onUpdateBalance(newPool);
           setMessage(`🏆 MASTER STREAK! 4 rounds cleared! You win $${formatMoney(newPool)} (${ROUND_MULTIS[3]}x)!`);
           addLog("Red or Black", origWager, ROUND_MULTIS[3], "WIN", "Mastered 4 rounds streak!");
           setRound(0);
@@ -92,7 +92,7 @@ export const RedOrBlackGame: React.FC<GameProps> = ({ balance, onUpdateBalance, 
       currentRoundRef.current = 1;
       currentPoolRef.current = wager;
       balanceAtStartRef.current = balance;
-      onUpdateBalance((prev) => Math.max(0, prev - wager));
+      onUpdateBalance(-wager);
       setRound(1);
       setCurrentPool(wager);
       setHistory([]);
@@ -105,7 +105,7 @@ export const RedOrBlackGame: React.FC<GameProps> = ({ balance, onUpdateBalance, 
     if (round <= 1 || currentPool <= 0 || spinning) return;
     const finalPool = currentPoolRef.current;
     const origWager = originalWagerRef.current;
-    onUpdateBalance((prev) => prev + finalPool);
+    onUpdateBalance(finalPool);
     setMessage(`💰 Safe recovery! Cashed out $${formatMoney(finalPool)} after round ${round - 1} (${(finalPool / origWager).toFixed(2)}x)!`);
     addLog("Red or Black", origWager, finalPool / origWager, "WIN", `Safe Cashout after Round ${round - 1}`);
     setRound(0);

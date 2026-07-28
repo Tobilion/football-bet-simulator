@@ -28,8 +28,7 @@ export function useChallenges({ userProfile, setUserProfile, persist }: UseChall
     const nextProfile: Profile = { ...userProfile, challenges: [...current, ...additions] };
     setUserProfile(nextProfile);
     persist(nextProfile);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userProfile?.currentRoundIndex, userProfile?.challenges?.length]);
+  }, [userProfile?.currentRoundIndex, userProfile?.challenges?.length, setUserProfile, persist]);
 
   const handleClaimChallenge = (challengeId: string) => {
     if (!userProfile) return;

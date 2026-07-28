@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Profile, Team, Fixture, Tipster, BetTicket, ClubOwnership, PurchasedItem } from "../types";
-import { persistStateToCache, getKeysForMode } from "../utils/storage";
+import { persistStateToCache, getKeysForMode, loadProfile } from "../utils/storage";
+
+const MAX_SINGLE_TX = 100_000;
 
 interface UseProfileDeps {
   gameMode: "TOURNAMENT" | "LEAGUE" | null;
@@ -17,6 +19,14 @@ export function useProfile(deps: UseProfileDeps) {
 
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
 
+  // Restore saved profile on mount / game-mode change (e.g. campaign resume)
+  useEffect(() => {
+    if (!gameMode) return;
+    const keys = getKeysForMode(gameMode, activeSlot);
+    const loaded = loadProfile(keys);
+    if (loaded) setUserProfile(loaded);
+  }, [gameMode, activeSlot]);
+
   const persist = (
     profile: Profile,
     t: Team[] = teams,
@@ -31,37 +41,20 @@ export function useProfile(deps: UseProfileDeps) {
   // which prevents the balance-corruption races (staking more than you hold,
   // wins overwriting the balance). Invariants enforced: result is finite, never
   // negative, and capped below float-precision limits to avoid overflow.
-  const MAX_BALANCE = 1e15; // beyond this JS floats lose integer precision
-  const handleUpdateBalanceCasino = (update: number | ((prev: number) => number)) => {
+  const MAX_BALANCE = 1e15;
+  const handleUpdateBalanceCasino = (delta: number) => {
+    if (!Number.isFinite(delta) || Math.abs(delta) > MAX_SINGLE_TX) {
+      console.warn("[casino] rejected oversized/non-finite delta", delta);
+      return;
+    }
     setUserProfile((prev) => {
       if (!prev) return prev;
-      const nextRaw = typeof update === "function" ? update(prev.balance) : update;
-      if (!Number.isFinite(nextRaw)) {
-        console.warn("[casino] rejected non-finite balance update", { prev: prev.balance, nextRaw });
+      const nextRaw = prev.balance + delta;
+      if (!Number.isFinite(nextRaw) || nextRaw < -1e-9 || nextRaw > MAX_BALANCE) {
         return prev;
       }
-      // A debit that would overdraw indicates a stake larger than the balance
-      // (stale state / double-click). Reject it so no un-funded bet slips through.
-      if (nextRaw < -1e-9) {
-        console.warn("[casino] rejected overdraw", { balance: prev.balance, attempted: nextRaw });
-        return prev;
-      }
-      const nextBalance = Math.min(MAX_BALANCE, Math.max(0, nextRaw));
-      if (nextBalance !== nextRaw && nextRaw > MAX_BALANCE) {
-        console.warn("[casino] balance capped at MAX_BALANCE", { nextRaw });
-      }
-      const updated: Profile = {
-        ...prev,
-        balance: Math.round(nextBalance * 100) / 100,
-        netProfit: Math.round((prev.netProfit + (nextBalance - prev.balance)) * 100) / 100,
-      };
-      if (gameMode) {
-        localStorage.setItem(
-          getKeysForMode(gameMode, activeSlot).profile,
-          JSON.stringify(updated),
-        );
-      }
-      return updated;
+      const nextBalance = Math.round(Math.max(0, Math.min(MAX_BALANCE, nextRaw)) * 100) / 100;
+      return { ...prev, balance: nextBalance, netProfit: Math.round((prev.netProfit + delta) * 100) / 100 };
     });
   };
 

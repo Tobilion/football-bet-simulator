@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
-  Gamepad2, Coins, ArrowLeft, Play, ShieldAlert, History, Maximize2, Minimize2,
+  Gamepad2, Coins, ArrowLeft, Play, History, Maximize2, Minimize2,
 } from "lucide-react";
 import { GlowOrb } from "./ui/GlowOrb";
 
@@ -24,9 +24,8 @@ import { formatMoney } from "../utils";
 
 interface CasinoSuiteProps {
   balance: number;
-  onUpdateBalance: (update: number | ((prev: number) => number)) => void;
+  onUpdateBalance: (delta: number) => void;
   username: string;
-  currentRoundIndex: number;
 }
 
 interface RollingLog {
@@ -44,31 +43,19 @@ const GAMES_LIST = [
   { id: "baccarat", name: "Baccarat Royale", rtp: "98.9%", desc: "Bet on Player, Banker or Tie. Tie pays 8:1. Banker 5% commission.", tag: "NEW 🎴", color: "from-rose-600/20 to-black/40 border-rose-500/30", multiplier: "up to 8x" },
   { id: "scratch", name: "Scratch & Score", rtp: "95.5%", desc: "Scratch 9 cells. Match 3+ symbols for up to 50x on diamonds!", tag: "NEW 🪙", color: "from-yellow-600/20 to-black/40 border-yellow-500/30", multiplier: "up to 50x" },
   { id: "redblack", name: "Red or Black Streak", rtp: "97.0%", desc: "Double or nothing 4-round streak. Beware of the trick Joker! Up to 16.8x.", tag: "HOT STREAK", color: "from-red-500/20 to-black/40 border-red-500/30", multiplier: "up to 16.8x" },
-  { id: "bottle", name: "Spin the Bottle", rtp: "97.5%", desc: "Bet Up or Down with the rotating champagne bottle. 2% freeze risk.", tag: "CLASSIC", color: "from-yellow-500/10 to-black/40 border-yellow-500/30", multiplier: "1.98x" },
+  { id: "bottle", name: "Spin the Bottle", rtp: "97.0%", desc: "Bet Up or Down with the rotating champagne bottle. 2% freeze risk.", tag: "CLASSIC", color: "from-yellow-500/10 to-black/40 border-yellow-500/30", multiplier: "1.98x" },
   { id: "crash", name: "Paddock Rush", rtp: "97.2%", desc: "Predict how far the football mascot runs before tripping. Uncapped multiplier!", tag: "HIGH VOL", color: "from-emerald-500/20 to-black/40 border-emerald-500/30", multiplier: "uncapped" },
   { id: "mines", name: "SportyMines", rtp: "98.0%", desc: "Custom mines on a 5x5 pitch. Uncover helmets and cash out early.", tag: "STRATEGY", color: "from-blue-500/20 to-black/40 border-blue-500/30", multiplier: "customizable" },
   { id: "shootout", name: "Penalty Shootout", rtp: "97.5%", desc: "Interactive spot kick. Beat the keeper for massive 40x multipliers!", tag: "SKILL", color: "from-purple-500/20 to-black/40 border-purple-500/30", multiplier: "up to 40.0x" },
   { id: "slots", name: "Football Slots", rtp: "96.5%", desc: "Spin football reels with high-paying Cups (100x) and Golden Boots (50x).", tag: "CASUAL", color: "from-amber-600/20 to-black/40 border-amber-500/30", multiplier: "up to 100.0x" },
-  { id: "plinko", name: "Golden Boot Plinko", rtp: "98.1%", desc: "Drop a golden chip through pegs into boosted multiplier bins.", tag: "BEST RTP", color: "from-pink-500/20 to-black/40 border-pink-500/30", multiplier: "up to 15.0x" },
-  { id: "dice", name: "Over / Under Dice", rtp: "97.8%", desc: "Roll high-fidelity duel dice. Adjust targets for boosted payouts.", tag: "SWIFT", color: "from-sky-500/20 to-black/40 border-sky-500/30", multiplier: "up to 5.85x" },
+  { id: "plinko", name: "Golden Boot Plinko", rtp: "97.8%", desc: "Drop a golden chip through pegs into boosted multiplier bins.", tag: "BEST RTP", color: "from-pink-500/20 to-black/40 border-pink-500/30", multiplier: "up to 15.0x" },
+  { id: "dice", name: "Over / Under Dice", rtp: "97.9%", desc: "Roll high-fidelity duel dice. Adjust targets for boosted payouts.", tag: "SWIFT", color: "from-sky-500/20 to-black/40 border-sky-500/30", multiplier: "up to 5.85x" },
 ];
 
-export const CasinoSuite: React.FC<CasinoSuiteProps> = ({ balance, onUpdateBalance, username, currentRoundIndex }) => {
+export const CasinoSuite: React.FC<CasinoSuiteProps> = ({ balance, onUpdateBalance, username }) => {
   const [activeGame, setActiveGame] = useState<string | null>(null);
   const [isFullView, setIsFullView] = useState<boolean>(false);
   const [filter, setFilter] = useState<"all" | "new" | "classic">("all");
-
-  const [claimedRounds, setClaimedRounds] = useState<number[]>(() => {
-    try { return JSON.parse(localStorage.getItem("fs_casino_emergency_claimed_rounds_v2") || "[]"); } catch { return []; }
-  });
-  const hasClaimedEmergency = claimedRounds.includes(currentRoundIndex);
-  const setHasClaimedEmergency = (claimed: boolean) => {
-    if (claimed && !hasClaimedEmergency) {
-      const next = [...claimedRounds, currentRoundIndex];
-      setClaimedRounds(next);
-      localStorage.setItem("fs_casino_emergency_claimed_rounds_v2", JSON.stringify(next));
-    }
-  };
 
   const [logs, setLogs] = useState<RollingLog[]>(() => {
     try { return JSON.parse(localStorage.getItem("fs_casino_logs_v6") || "[]"); } catch { return []; }
@@ -136,23 +123,6 @@ export const CasinoSuite: React.FC<CasinoSuiteProps> = ({ balance, onUpdateBalan
               <span className="text-xs font-black text-emerald-400 mt-1 block">${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Low balance warning — lobby */}
-      {!activeGame && balance < 50 && !hasClaimedEmergency && (
-        <div className="mx-4 md:mx-6 mt-4 bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <ShieldAlert className="text-red-400 animate-bounce shrink-0" size={20} />
-            <div>
-              <span className="text-[11px] font-mono font-black text-red-400 uppercase">LOW BALANCE ALERT</span>
-              <p className="text-[10px] text-slate-300">Balance: ${formatMoney(balance)}. Claim $500 trial credits!</p>
-            </div>
-          </div>
-          <button onClick={() => { onUpdateBalance(p => p + 500); setHasClaimedEmergency(true); addLog("Emergency Grant", 500, 1, "WIN", "Claimed $500 emergency fund"); }}
-            className="bg-emerald-500 hover:bg-emerald-400 text-[#05070a] font-extrabold text-[10px] px-3.5 py-2 rounded-xl transition-all cursor-pointer shadow-lg active:scale-95 uppercase tracking-wide shrink-0">
-            Claim $500 💸
-          </button>
         </div>
       )}
 
@@ -241,20 +211,6 @@ export const CasinoSuite: React.FC<CasinoSuiteProps> = ({ balance, onUpdateBalan
                   </div>
                 </div>
               </div>
-
-              {/* Low balance in-game */}
-              {balance < 50 && (
-                <div className="mx-4 mt-3 bg-red-500/10 border border-red-500/25 rounded-xl px-3 py-2 flex items-center justify-between gap-3 shrink-0 animate-pulse">
-                  <div className="flex items-center gap-2">
-                    <ShieldAlert size={14} className="text-red-400 shrink-0" />
-                    <span className="text-[10px] text-red-300 font-mono">Low balance! Claim $1,000 free.</span>
-                  </div>
-                  <button onClick={() => { onUpdateBalance(p => p + 1000); addLog("Emergency Grant", 1000, 1, "WIN", "Claimed $1000 fund"); }}
-                    className="bg-amber-500 hover:bg-amber-450 text-[#05070a] text-[9.5px] font-black px-3 py-1 rounded-lg cursor-pointer active:scale-95 transition-all whitespace-nowrap uppercase shrink-0">
-                    +$1,000
-                  </button>
-                </div>
-              )}
 
               <div className="flex-1 p-4" key={activeGame}>
                 {gameRenderer[activeGame]}

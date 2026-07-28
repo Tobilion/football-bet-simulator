@@ -1,26 +1,7 @@
 import React, { useState } from "react";
 import { GameProps, StakeSlider } from "./shared";
 import { formatMoney } from "../../utils";
-
-const TOTAL = 40;
-const DRAW = 10;
-
-// Pay tables keyed by how many numbers the player picked, then by how many hit.
-// Each table is tuned so its expected return is < 1 (house-favorable) — verified in tests.
-// Picking fewer numbers now has its own honest table instead of the old fixed 10-pick table
-// (which made small tickets mathematically unable to win).
-const KENO_PAYOUTS: Record<number, Record<number, number>> = {
-  1: { 1: 3 },
-  2: { 2: 13 },
-  3: { 2: 1, 3: 45 },
-  4: { 3: 6, 4: 130 },
-  5: { 3: 3, 4: 20, 5: 400 },
-  6: { 3: 2, 4: 12, 5: 90, 6: 1000 },
-  7: { 4: 5, 5: 35, 6: 220, 7: 1800 },
-  8: { 4: 3, 5: 20, 6: 110, 7: 700, 8: 3000 },
-  9: { 4: 2, 5: 10, 6: 55, 7: 320, 8: 1500, 9: 4500 },
-  10: { 5: 5, 6: 28, 7: 130, 8: 600, 9: 2200, 10: 5000 },
-};
+import { KENO_TOTAL as TOTAL, KENO_DRAW as DRAW, KENO_PAYOUTS } from "./constants";
 
 // Unbiased Fisher-Yates shuffle (the old `.sort(() => Math.random() - 0.5)` is biased).
 function shuffle<T>(arr: T[]): T[] {
@@ -54,7 +35,7 @@ export const KenoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog
   const draw = () => {
     if (picks.size === 0) { setMessage("Pick at least 1 number first!"); return; }
     if (balance < safeStake) { setMessage("❌ Insufficient balance."); return; }
-    onUpdateBalance(p => Math.max(0, p - safeStake));
+    onUpdateBalance(-safeStake);
     const pickCount = picks.size;
     const pool = Array.from({ length: TOTAL }, (_, i) => i + 1);
     const drawnNums = shuffle(pool).slice(0, DRAW);
@@ -69,7 +50,7 @@ export const KenoGame: React.FC<GameProps> = ({ balance, onUpdateBalance, addLog
           const table = KENO_PAYOUTS[pickCount] ?? {};
           const multi = table[hitCount] ?? 0;
           const payout = safeStake * multi;
-          if (payout > 0) onUpdateBalance(p => p + payout);
+          onUpdateBalance(payout);
           setHits(hitCount);
           setPhase("done");
           if (multi > 0) {
