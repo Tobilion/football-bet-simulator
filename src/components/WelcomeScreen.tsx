@@ -71,7 +71,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             
             <div className="space-y-2">
               <h1 className="text-3xl font-black uppercase tracking-wider text-slate-100 font-sans leading-none">
-                CU <span className="text-emerald-400">Bet</span>
+                Matchday <span className="text-emerald-400">Exchange</span>
               </h1>
               <p className="text-xs text-slate-400 font-mono tracking-widest uppercase">
                 Campaign Seeding Arena

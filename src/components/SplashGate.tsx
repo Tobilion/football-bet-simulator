@@ -42,11 +42,11 @@ export const SplashGate: React.FC<SplashGateProps> = ({ onEnter }) => {
             <Trophy size={30} className="text-slate-950" strokeWidth={2.5} />
           </div>
           <h1 className="text-4xl sm:text-5xl font-black tracking-wider uppercase leading-none">
-            <span className="text-slate-100">CU</span>{" "}
-            <span className="text-emerald-400">BET</span>
+            <span className="text-slate-100">Matchday</span>{" "}
+            <span className="text-emerald-400">Exchange</span>
           </h1>
           <p className="text-xs font-mono uppercase tracking-[0.3em] text-slate-400">
-            Elite Football &amp; Sportsbook Simulator
+            Elite Football &amp; Prediction Market Simulator
           </p>
         </div>
 
