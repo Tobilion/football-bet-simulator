@@ -6,7 +6,7 @@
 
 ![Demo](demo.gif)
 
-Matchday Exchange is an offline-first, 32-team knockout/league football simulation and betting game that runs entirely in the browser — no backend, no account, no API keys. A real-time match engine drives live odds, and every bet you place settles against matches actually simulated tick by tick.
+Matchday Exchange is an offline-first, 32-team knockout/league football simulation and betting game that runs entirely in the browser — no account, no API keys required to play. A real-time match engine drives live odds, and every bet you place settles against matches actually simulated tick by tick. An optional wallet/settlement server (live at the link below) makes your balance server-authoritative rather than client-editable; without it, everything still works exactly the same via local computation.
 
 ---
 
@@ -68,13 +68,25 @@ back on the next server round-trip — it never reads what you tampered with.
 ### Deploying the wallet server (optional, for the live demo)
 
 The live site works fully offline-first with no server, same as running it
-locally. To also deploy the server so the live demo shows the same
+locally. The wallet server for this project is deployed and live at
+**https://matchday-exchange-server.onrender.com** — the deployed frontend's
+`VITE_API_BASE_URL` already points at it, so bets placed on the live demo hit
+the real server unless it's cold (see the trade-off note below).
+
+To redeploy your own copy of the server so a fork's live demo shows the same
 tamper-resistance:
 
 1. Push this repo to GitHub (already done if you're reading this on GitHub).
-2. On [Render](https://render.com), choose **New → Blueprint**, point it at
-   this repo — `render.yaml` at the project root pre-fills the build/start
-   commands (`npm ci`, `npm run server:start`) on the free tier.
+2. On [Render](https://render.com), either:
+   - **Blueprint (recommended):** choose **New → Blueprint**, point it at
+     this repo — `render.yaml` at the project root pre-fills the build/start
+     commands (`npm ci`, `npm run server:start`) on the free tier; or
+   - **Manual Web Service:** choose **New → Web Service**, connect this repo,
+     and when Render doesn't auto-detect `render.yaml`, set Build Command to
+     `npm ci` and Start Command to `npm run server:start` yourself. Pick
+     **Web Service**, not Private Service — a Private Service is only
+     reachable from other Render services on the same private network, not
+     from your public Vercel frontend.
 3. After the first deploy, set `CU_BET_ALLOWED_ORIGINS` in the Render
    dashboard to your actual frontend domain(s), comma-separated (it defaults
    to `localhost` only — the deployed server will reject the deployed
