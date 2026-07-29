@@ -1,0 +1,22 @@
+# Render Blueprint for the optional wallet/settlement server.
+# https://render.com/docs/blueprint-spec
+#
+# This deploys ONLY server/ (an Express API) — the frontend is a separate
+# static deploy on Vercel, unaffected by this file. To use: push this repo to
+# GitHub, then in Render choose "New > Blueprint" and point it at the repo.
+# After the first deploy, set CU_BET_ALLOWED_ORIGINS in the Render dashboard
+# to your actual Vercel domain (comma-separated if you have more than one,
+# e.g. preview + production URLs) — it defaults to localhost only, so the
+# deployed server will reject the deployed frontend's requests until you do.
+services:
+  - type: web
+    name: matchday-exchange-server
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm run server:start
+    envVars:
+      - key: CU_BET_ALLOWED_ORIGINS
+        value: http://localhost:3001
+      - key: NODE_VERSION
+        value: 20

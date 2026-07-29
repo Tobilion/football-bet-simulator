@@ -157,7 +157,7 @@ export const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({ onEnter })
             onClick={handleEnter}
             className="px-8 py-3.5 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-sm uppercase tracking-wider rounded-xl shadow-[0_8px_32px_rgba(16,185,129,0.25)] hover:shadow-[0_12px_40px_rgba(16,185,129,0.4)] active:scale-[0.97] transition-all cursor-pointer"
           >
-            Enter CU Bet
+            Enter Matchday Exchange
           </MagneticButton>
         </motion.div>
       </div>

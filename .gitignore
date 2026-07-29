@@ -15,3 +15,6 @@ BUGS.md
 
 # Local Project Console chat memory (not for git)
 .console/
+
+# Server-side wallet/ticket state (runtime data, per-player, not for git)
+server/data/

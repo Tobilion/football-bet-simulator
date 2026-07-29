@@ -45,8 +45,8 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ fixtures, teams, roundLa
   const staticFlavorPosts: Post[] = [
     {
       id: "flavor-1",
-      authorName: "CU Bet Advisor",
-      authorHandle: "CUBetAdvisor",
+      authorName: "Matchday Advisor",
+      authorHandle: "MatchdayAdvisor",
       avatarSeed: "📈",
       content: `🔥 VALUE BET ALERT: Standard payout stats show Home teams are dominating under this tournament seeder. Double chance draw/away odds are currently inflated! Get on it before matches start.`,
       timestamp: "5m ago",
@@ -211,7 +211,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ fixtures, teams, roundLa
 
     const newUserPost: Post = {
       id: `user-post-${Date.now()}`,
-      authorName: "You (CU Bet VIP)",
+      authorName: "You (Matchday VIP)",
       authorHandle: "MyBetsMaster",
       avatarSeed: selectedAvatar,
       content: userPostText,
@@ -274,7 +274,7 @@ export const SocialFeed: React.FC<SocialFeedProps> = ({ fixtures, teams, roundLa
             🔴 Live Fan Zone & community Timeline
           </span>
           <h2 className="text-sm font-bold text-slate-100 font-sans tracking-tight">
-            CU Bet Supporter Hub — Live Reactions
+            Matchday Exchange Supporter Hub — Live Reactions
           </h2>
           <p className="text-xs text-slate-400">
             Read current tournament banter, transfer gossip, and expert betting advice. Posts react to match goal tickers in real-time!

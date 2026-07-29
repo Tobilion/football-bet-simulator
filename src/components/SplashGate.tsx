@@ -79,7 +79,7 @@ export const SplashGate: React.FC<SplashGateProps> = ({ onEnter }) => {
             onClick={onEnter}
             className="px-10 py-4 rounded-2xl bg-gradient-to-r from-emerald-400 to-sky-400 text-slate-950 font-black uppercase tracking-wider text-sm shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 active:scale-98 transition-all cursor-pointer flex items-center gap-2"
           >
-            Enter CU Bet
+            Enter Matchday Exchange
             <ArrowRight size={16} strokeWidth={2.5} />
           </button>
           <span className="text-[10px] text-slate-500">

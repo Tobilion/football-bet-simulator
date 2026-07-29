@@ -50,7 +50,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
         <div className="text-center space-y-1 select-none">
           <span className="text-2xl block">🏦</span>
           <h3 className="text-sm font-black tracking-wider uppercase text-emerald-400 font-sans mt-2">
-            CU Bet Wallet Centre
+            Matchday Exchange Wallet Centre
           </h3>
           <p className="text-[9px] text-slate-400 font-mono tracking-tight">
             SECURE TRANSACTION PORTAL

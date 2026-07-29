@@ -143,9 +143,9 @@ export default function Dashboard() {
     ? `Matchday ${(userProfile?.currentRoundIndex ?? 0) + 1}`
     : ROUND_LABELS[userProfile?.currentRoundIndex || 0] || `Round ${(userProfile?.currentRoundIndex ?? 0) + 1}`;
 
-  const handleBBPlace = (sels: BetBuilderSelection[], stake: number, odds: number) => {
+  const handleBBPlace = async (sels: BetBuilderSelection[], stake: number, odds: number) => {
     if (!betBuilderFixtureId) return;
-    const ok = bettingHook.handlePlaceBetBuilder(betBuilderFixtureId, sels, stake, odds);
+    const ok = await bettingHook.handlePlaceBetBuilder(betBuilderFixtureId, sels, stake, odds);
     if (ok) setBetBuilderFixtureId(null);
   };
 

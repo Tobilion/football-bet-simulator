@@ -1,7 +1,17 @@
 import { useState } from "react";
 import { TransferListing, Profile } from "../types";
 import { generateTransferListings, refreshTransferListings } from "../engine/transferEngine";
+import { transition, type Bid } from "../engine/bidLifecycle";
 import { addToast } from "./useToast";
+
+/** Adapts the app's plain `{listingId, amount}` bid tuple into the state
+ *  machine's `Bid` shape. Bids the user currently holds are always "live"
+ *  (not WITHDRAWN/SETTLED) since a terminal bid is removed from `userBids`
+ *  as soon as it reaches that state — so PLACED is a safe default status to
+ *  hand the state machine when reconstructing one from the tuple. */
+function toLifecycleBid(b: { listingId: string; amount: number } | undefined): Bid | null {
+  return b ? { listingId: b.listingId, amount: b.amount, status: "PLACED" } : null;
+}
 
 interface UseTransferMarketDeps {
   userProfile: Profile | null;
@@ -47,8 +57,17 @@ export function useTransferMarket(deps: UseTransferMarketDeps) {
       return;
     }
 
+    // PLACE/UPDATE via the pure bid-lifecycle state machine — it nets the
+    // refund-old/debit-new delta itself (see engine/bidLifecycle.ts), so this
+    // is guaranteed to match the balance check above exactly.
+    const { walletDelta } = transition(
+      toLifecycleBid(prevBid),
+      { type: prevBid ? "UPDATE" : "PLACE", amount },
+      listingId,
+    );
+
     // Update balance: deduct the new amount, refund the old bid amount
-    const nextBalance = Math.round((userProfile.balance + refundDiff - amount) * 100) / 100;
+    const nextBalance = Math.round((userProfile.balance + walletDelta) * 100) / 100;
     const nextProfile: Profile = {
       ...userProfile,
       balance: nextBalance,
@@ -97,7 +116,10 @@ export function useTransferMarket(deps: UseTransferMarketDeps) {
       }
     }
 
-    const nextBalance = Math.round((userProfile.balance + bid.amount) * 100) / 100;
+    const { walletDelta } = transition(toLifecycleBid(bid), { type: "WITHDRAW" }, listingId);
+    if (walletDelta === 0) return; // already withdrawn/settled — idempotent no-op, no duplicate refund
+
+    const nextBalance = Math.round((userProfile.balance + walletDelta) * 100) / 100;
     const nextProfile: Profile = {
       ...userProfile,
       balance: nextBalance,
@@ -106,7 +128,7 @@ export function useTransferMarket(deps: UseTransferMarketDeps) {
         {
           timestamp: Date.now(),
           balance: nextBalance,
-          detail: `Withdrew bid on ${playerName}: +$${bid.amount}`,
+          detail: `Withdrew bid on ${playerName}: +$${walletDelta}`,
         },
       ],
     };
@@ -118,7 +140,7 @@ export function useTransferMarket(deps: UseTransferMarketDeps) {
     addToast({
       type: "info",
       title: "🔄 Bid Withdrawn",
-      message: `Refunded $${bid.amount.toLocaleString()} for withdrawing bid on ${playerName}`,
+      message: `Refunded $${walletDelta.toLocaleString()} for withdrawing bid on ${playerName}`,
       duration: 4000
     });
   };

@@ -33,7 +33,7 @@ function AppContent() {
   if (booting) {
     return (
       <div className="min-h-screen bg-[#05070a] flex flex-col items-center justify-center gap-5">
-        <div className="text-3xl font-black tracking-widest text-emerald-400">CU BET</div>
+        <div className="text-3xl font-black tracking-widest text-emerald-400">MATCHDAY EXCHANGE</div>
         <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden">
           <div className="h-full w-3/4 bg-emerald-400 rounded-full animate-pulse" />
         </div>

@@ -17,6 +17,8 @@ import { addToast } from "../hooks/useToast";
 import { evaluateChallenges } from "../data/challenges";
 import { recordSeasonEnd } from "../utils/careerUtils";
 import { settlePendingTickets } from "../utils/betSettlement";
+import { settleOnServer, creditWalletOnServer } from "../utils/apiClient";
+import { settleAllBids, type Bid as LifecycleBid } from "../engine/bidLifecycle";
 
 interface UseRoundAdvanceDeps {
   gameMode: "TOURNAMENT" | "LEAGUE" | null;
@@ -128,7 +130,7 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
     onTransferToast,
   } = deps;
 
-  return function handleAdvanceRound() {
+  return async function handleAdvanceRound() {
     if (!userProfile || isSimulating) return;
 
     const currentRoundIndex = userProfile.currentRoundIndex;
@@ -171,48 +173,81 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
       if (toastMsg) { onTransferToast(toastMsg); addToast({ type: "transfer", title: "🔄 Transfer", message: toastMsg, duration: 6000 }); }
     }
 
-    // 2. Evaluate user pending tickets — re-read from localStorage to avoid
-    // double-settling tickets already processed by the auto-settle effect.
-    const keys = gameMode ? getKeysForMode(gameMode, activeSlot) : null;
-    let ticketsForSettlement = userProfile.tickets;
-    let autoSettled = false;
-    if (keys) {
-      try {
-        const raw = localStorage.getItem(keys.profile);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          const storedProfile: Profile | null = parsed && typeof parsed === "object" && "data" in parsed ? parsed.data : parsed;
-          if (storedProfile?.tickets) {
-            // If any ticket matching completed fixtures is SETTLING or already
-            // resolved, the auto-settle has handled it — skip settlement.
-            const hasActive = storedProfile.tickets.some(
-              (t: BetTicket) => t.status === "PENDING" || t.status === "SETTLING",
-            );
-            if (!hasActive) autoSettled = true;
-            ticketsForSettlement = storedProfile.tickets;
-          }
-        }
-      } catch { /* fallback to closure tickets */ }
-    }
+    // 2. Evaluate user pending tickets. If the wallet server is reachable, it
+    // is the authoritative settlement — it re-reads ITS OWN stored tickets
+    // (already reflecting anything settleFinishedTickets settled moments ago
+    // via the same server) and settling an already-resolved ticket is a
+    // no-op there, so there's no double-settlement risk to guard against the
+    // way the local path below has to. Falls back to the original
+    // localStorage-peek + local settlement exactly as before if the server
+    // isn't running.
     let totalWinPayoutSum = 0;
-    let finalTickets: BetTicket[] = ticketsForSettlement;
-    if (!autoSettled) {
-      const settled = settlePendingTickets(ticketsForSettlement, completedFixtures);
-      finalTickets = settled.finalTickets;
-      totalWinPayoutSum = settled.totalWinPayoutSum;
+    let finalTickets: BetTicket[] = userProfile.tickets;
+    let settledViaServer = false;
+
+    if (gameMode) {
+      const serverResult = await settleOnServer({ gameMode, slot: activeSlot }, completedFixtures);
+      if (serverResult.ok) {
+        settledViaServer = true;
+        totalWinPayoutSum = serverResult.totalWinPayoutSum;
+        finalTickets = serverResult.profile.tickets;
+        userProfile.tickets.forEach((before, idx) => {
+          const after = finalTickets[idx];
+          if (after && before.status === "PENDING" && after.status !== before.status) {
+            if (after.status === "WON") {
+              addToast({ type: "win", title: "🏆 Ticket Won!", message: `+$${(after.settledPayout ?? after.potentialPayout).toFixed(2)} payout`, duration: 5000 });
+            } else if (after.status === "LOST") {
+              addToast({ type: "loss", title: "Ticket Lost", message: `-$${after.stake.toFixed(2)} stake lost`, duration: 3000 });
+            }
+          }
+        });
+      }
     }
 
-    // 2a. Toast won/lost regular tickets (only for newly settled tickets)
-    if (!autoSettled) {
-      finalTickets.forEach((ticket, idx) => {
-        if (ticketsForSettlement[idx]?.status === "PENDING") {
-          if (ticket.status === "WON") {
-            addToast({ type: "win", title: "🏆 Ticket Won!", message: `+$${(ticket.settledPayout ?? ticket.potentialPayout).toFixed(2)} payout`, duration: 5000 });
-          } else if (ticket.status === "LOST") {
-            addToast({ type: "loss", title: "Ticket Lost", message: `-$${ticket.stake.toFixed(2)} stake lost`, duration: 3000 });
+    if (!settledViaServer) {
+      // ORIGINAL local-only path, unchanged: re-read from localStorage to
+      // avoid double-settling tickets already processed by the auto-settle
+      // effect.
+      const keys = gameMode ? getKeysForMode(gameMode, activeSlot) : null;
+      let ticketsForSettlement = userProfile.tickets;
+      let autoSettled = false;
+      if (keys) {
+        try {
+          const raw = localStorage.getItem(keys.profile);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const storedProfile: Profile | null = parsed && typeof parsed === "object" && "data" in parsed ? parsed.data : parsed;
+            if (storedProfile?.tickets) {
+              // If any ticket matching completed fixtures is SETTLING or already
+              // resolved, the auto-settle has handled it — skip settlement.
+              const hasActive = storedProfile.tickets.some(
+                (t: BetTicket) => t.status === "PENDING" || t.status === "SETTLING",
+              );
+              if (!hasActive) autoSettled = true;
+              ticketsForSettlement = storedProfile.tickets;
+            }
           }
-        }
-      });
+        } catch { /* fallback to closure tickets */ }
+      }
+      finalTickets = ticketsForSettlement;
+      if (!autoSettled) {
+        const settled = settlePendingTickets(ticketsForSettlement, completedFixtures);
+        finalTickets = settled.finalTickets;
+        totalWinPayoutSum = settled.totalWinPayoutSum;
+      }
+
+      // 2a. Toast won/lost regular tickets (only for newly settled tickets)
+      if (!autoSettled) {
+        finalTickets.forEach((ticket, idx) => {
+          if (ticketsForSettlement[idx]?.status === "PENDING") {
+            if (ticket.status === "WON") {
+              addToast({ type: "win", title: "🏆 Ticket Won!", message: `+$${(ticket.settledPayout ?? ticket.potentialPayout).toFixed(2)} payout`, duration: 5000 });
+            } else if (ticket.status === "LOST") {
+              addToast({ type: "loss", title: "Ticket Lost", message: `-$${ticket.stake.toFixed(2)} stake lost`, duration: 3000 });
+            }
+          }
+        });
+      }
     }
 
         // 2b. Settle BetBuilder tickets
@@ -346,37 +381,71 @@ export function buildHandleAdvanceRound(deps: UseRoundAdvanceDeps) {
       }
     }
 
-    // 7. Calculate outbid refunds for users (money was deducted when placing bid)
+    // 7. Settle outstanding transfer bids via the pure bid-lifecycle state
+    // machine (engine/bidLifecycle.ts) — each bid transitions to SETTLED
+    // exactly once, so a bid can never be refunded twice even if this round
+    // somehow re-processes a listing (the state machine no-ops on an
+    // already-terminal bid). Won bids get no wallet delta (already spent at
+    // placement); everything else (outbid or the listing expired unsold)
+    // is refunded in full.
     let transferBalanceAdjust = 0;
     const refundLogs: { timestamp: number; balance: number; detail: string }[] = [];
     let runningBalance = userProfile.balance + totalWinPayoutSum + bbPayoutSum + ownershipRevenue;
 
     if (userBids && userBids.length > 0 && resolvedTransferListings.length > 0) {
+      const wonListingIds = new Set(
+        resolvedTransferListings
+          .filter((l) => l.status === "SOLD" && l.highestBidder === "USER")
+          .map((l) => l.id),
+      );
+      const lifecycleBids: LifecycleBid[] = userBids.map((b) => ({
+        listingId: b.listingId,
+        amount: b.amount,
+        status: "PLACED",
+      }));
+      const { totalWalletDelta } = settleAllBids(lifecycleBids, wonListingIds);
+      transferBalanceAdjust = totalWalletDelta;
+
       userBids.forEach((bid) => {
-        const listing = resolvedTransferListings.find(l => l.id === bid.listingId);
-        const won = listing && listing.status === "SOLD" && listing.highestBidder === "USER";
-        if (!won) {
-          // Find player name for log details
-          let playerName = "Player";
-          for (const team of teams) {
-            const p = team.players.find((pl) => pl.id === (listing?.playerId || ""));
-            if (p) { playerName = p.name; break; }
-          }
-          transferBalanceAdjust += bid.amount;
-          runningBalance += bid.amount;
-          refundLogs.push({
-            timestamp: Date.now(),
-            balance: runningBalance,
-            detail: `Outbid refund for ${playerName}: +$${bid.amount}`,
-          });
+        if (wonListingIds.has(bid.listingId)) return; // won — no refund, no log line
+        const listing = resolvedTransferListings.find((l) => l.id === bid.listingId);
+        let playerName = "Player";
+        for (const team of teams) {
+          const p = team.players.find((pl) => pl.id === (listing?.playerId || ""));
+          if (p) { playerName = p.name; break; }
         }
+        runningBalance = Math.round((runningBalance + bid.amount) * 100) / 100;
+        refundLogs.push({
+          timestamp: Date.now(),
+          balance: runningBalance,
+          detail: `Outbid refund for ${playerName}: +$${bid.amount}`,
+        });
       });
     }
 
-    const nextBalance =
+    let nextBalance =
       Math.round(
         (userProfile.balance + totalWinPayoutSum + bbPayoutSum + ownershipRevenue + transferBalanceAdjust) * 100,
       ) / 100;
+
+    // If ticket settlement went through the server, it already applied
+    // totalWinPayoutSum to ITS stored balance — but ownership income and
+    // transfer refunds above were computed locally and haven't reached it
+    // yet. Push that delta through the same server so its balance and the
+    // client's `nextBalance` don't quietly drift apart (the next place-bet
+    // or cash-out call would otherwise be validated against a stale, lower
+    // server balance). If this call fails, `nextBalance` above is kept as
+    // the best local estimate — it'll reconcile the next time the bootstrap
+    // effect in useBetting runs.
+    const nonTicketRevenue = Math.round((bbPayoutSum + ownershipRevenue + transferBalanceAdjust) * 100) / 100;
+    if (settledViaServer && gameMode && nonTicketRevenue !== 0) {
+      const creditResult = await creditWalletOnServer(
+        { gameMode, slot: activeSlot },
+        nonTicketRevenue,
+        "Round advance: club ownership income + transfer-bid refunds",
+      );
+      if (creditResult.ok) nextBalance = creditResult.profile.balance;
+    }
 
     const finalNetProfit = Math.round(finalTickets.reduce((acc, t) => {
       if (t.status === "WON") return acc + ((t.settledPayout ?? t.potentialPayout) - t.stake);

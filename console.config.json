@@ -1,9 +1,9 @@
 {
-  "projectName": "CU Bet Simulator",
+  "projectName": "Matchday Exchange",
   "entries": [
-    { "triggers": ["start dev server", "run locally", "start cu bet"], "type": "command", "action": "npm run dev" },
+    { "triggers": ["start dev server", "run locally", "start matchday exchange"], "type": "command", "action": "npm run dev" },
     { "triggers": ["run tests", "test simulator", "run test suite"], "type": "command", "action": "npm test" },
-    { "triggers": ["build project", "build cu bet", "production build"], "type": "command", "action": "npm run build" },
+    { "triggers": ["build project", "build matchday exchange", "production build"], "type": "command", "action": "npm run build" },
     { "triggers": ["check types", "lint project", "type check"], "type": "command", "action": "npm run lint" },
     { "triggers": ["git status", "show changes", "what changed"], "type": "command", "action": "git status --short" },
     { "triggers": ["deploy", "push live", "publish changes"], "type": "command", "action": "git push", "risky": true },

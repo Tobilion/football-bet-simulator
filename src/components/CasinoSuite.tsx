@@ -107,10 +107,10 @@ export const CasinoSuite: React.FC<CasinoSuiteProps> = ({ balance, onUpdateBalan
           <div>
             <div className="flex items-center gap-2">
               <Gamepad2 className="text-emerald-400 animate-pulse" size={18} />
-              <span className="text-[10px] text-emerald-400 font-mono tracking-widest uppercase font-black">CU BET ELITE LOUNGE</span>
+              <span className="text-[10px] text-emerald-400 font-mono tracking-widest uppercase font-black">MATCHDAY ELITE LOUNGE</span>
             </div>
             <h2 className="text-sm font-black text-slate-100 font-sans uppercase tracking-wider mt-1 flex items-center gap-2 flex-wrap">
-              CU Bet Elite Casino Suite
+              Matchday Exchange Elite Casino Suite
               <span className="bg-emerald-500/20 text-emerald-400 text-[8px] font-mono px-1.5 py-0.5 rounded-full animate-pulse font-black">16 GAMES</span>
             </h2>
             <p className="text-[10px] text-slate-400 font-mono mt-0.5">Wager with your manager balance. Wins reflect instantly.</p>

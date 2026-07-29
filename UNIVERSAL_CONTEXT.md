@@ -13,7 +13,7 @@ Languages I work in day to day: JavaScript/TypeScript and Python (most projects 
 ## What I've built (all on GitHub: github.com/Tobilion)
 
 - **Portfolio** — tobiloba-jagun-portfolio.vercel.app (React 19 + TS + Vite + Tailwind v4, Framer Motion, Spline/Three.js). Bento-grid stack overview, a filterable projects hub with language tag pills, a bilingual English/Arabic toggle that flips the whole layout to RTL, a vertical academic timeline, and a live pulsing availability indicator.
-- **CU Bet** — football sim + sportsbook: live odds, bet builder, cash out, club ownership, 14-game casino — football-bet-simulator.vercel.app (my most feature-rich project)
+- **Matchday Exchange** — football simulation + prediction market: live odds, same-game multi builder, cash out, club ownership, 14-game casino — football-bet-simulator.vercel.app (my most feature-rich project)
 - **SportSim Pro** — football management sim — sport-sim-three.vercel.app
 - **Dream Kick** — browser 3D football game, vanilla JS + Three.js, zero external assets, offline PWA — dream-kick.vercel.app
 - **Habitline** — habit tracker with streaks + heatmap — habitline-chi.vercel.app

@@ -61,7 +61,7 @@ export const Header: React.FC<HeaderProps> = ({
         <Activity size={20} className="animate-pulse text-emerald-400" />
         <div className="hidden sm:block">
           <h1 className="text-sm font-black tracking-wider uppercase text-emerald-400 font-sans leading-none">
-            CU Bet
+            Matchday Exchange
           </h1>
           <p className="text-[10px] text-slate-400 font-mono tracking-widest leading-none mt-1">
             {gameMode === "LEAGUE" ? "LEAGUE CAMPAIGN" : "TOURNAMENT ENGINE"}

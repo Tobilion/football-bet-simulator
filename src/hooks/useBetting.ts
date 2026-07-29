@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BetSelection,
   BetBuilderSelection,
@@ -14,6 +14,7 @@ import { credit, debit, round2 } from "../utils/wallet";
 import { computeAccaOdds } from "../utils/betBuilderUtils";
 import { settlePendingTickets } from "../utils/betSettlement";
 import { addToast } from "../hooks/useToast";
+import { bootstrapWallet, placeBetOnServer, cashOutOnServer, settleOnServer, placeBetBuilderOnServer, type ServerFailure } from "../utils/apiClient";
 
 interface UseBettingDeps {
   userProfile: Profile | null;
@@ -42,6 +43,31 @@ export function useBetting(deps: UseBettingDeps) {
   } = deps;
 
   const [selectedBets, setSelectedBets] = useState<BetSelection[]>([]);
+
+  // Tri-state: null = not checked yet, true/false = last known reachability.
+  // Once a call comes back "unreachable" we stop retrying the server for the
+  // rest of the session (each attempt still has to time out first, so this
+  // avoids a repeated ~1.2s stall on every bet when there's simply no server
+  // running — the overwhelmingly common case for local/offline play).
+  const serverAvailable = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    if (!userProfile || !gameMode) return;
+    let cancelled = false;
+    bootstrapWallet({ gameMode, slot: activeSlot }, userProfile).then((result) => {
+      if (cancelled) return;
+      serverAvailable.current = result.ok;
+      // If the server already had a profile for this slot (i.e. this isn't
+      // the very first contact), its balance/tickets are now the truth —
+      // reconcile local state to match so the two never silently diverge.
+      if (result.ok && JSON.stringify(result.profile) !== JSON.stringify(userProfile)) {
+        setUserProfile(result.profile);
+      }
+    });
+    return () => { cancelled = true; };
+    // Only re-run when the save slot itself changes, not on every profile edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameMode, activeSlot]);
 
   const persist = (profile: Profile) =>
     persistStateToCache(gameMode, activeSlot, profile, teams, fixtures, tipsters, tipsterTickets);
@@ -94,23 +120,19 @@ export function useBetting(deps: UseBettingDeps) {
 
   const handleClearAllSelections = () => setSelectedBets([]);
 
-  const handlePlaceBet = (
+  /**
+   * Local (client-only) bet placement — the ORIGINAL logic, unchanged. This
+   * runs whenever the wallet server isn't reachable, so offline play behaves
+   * exactly as it always has. When the server IS reachable, handlePlaceBet
+   * (below) defers to it instead, since the server recomputes this same
+   * math against its own stored balance rather than trusting this one.
+   */
+  const placeBetLocally = (
     type: "SINGLE" | "ACCUMULATOR",
     totalStake: number,
     selectionStakes?: { [secId: string]: number },
   ) => {
     if (!userProfile) return;
-    if (!Number.isFinite(totalStake) || totalStake <= 0) {
-      alert("Stake must be greater than zero.");
-      return;
-    }
-    if (type === "SINGLE" && selectionStakes) {
-      const sum = round2(Object.values(selectionStakes).reduce((a, b) => a + (b || 0), 0));
-      if (Math.abs(sum - totalStake) > 0.01) {
-        alert("Per-selection stakes must add up to the total stake.");
-        return;
-      }
-    }
     const debited = debit(userProfile.balance, totalStake);
     if (debited === null) {
       alert("Insufficient wallet balance!");
@@ -163,7 +185,55 @@ export function useBetting(deps: UseBettingDeps) {
     persist(nextProfile);
   };
 
-  const handleCashOut = (ticketId: string, offerAmount: number) => {
+  const handlePlaceBet = async (
+    type: "SINGLE" | "ACCUMULATOR",
+    totalStake: number,
+    selectionStakes?: { [secId: string]: number },
+  ) => {
+    if (!userProfile) return;
+    if (!Number.isFinite(totalStake) || totalStake <= 0) {
+      alert("Stake must be greater than zero.");
+      return;
+    }
+    if (type === "SINGLE" && selectionStakes) {
+      const sum = round2(Object.values(selectionStakes).reduce((a, b) => a + (b || 0), 0));
+      if (Math.abs(sum - totalStake) > 0.01) {
+        alert("Per-selection stakes must add up to the total stake.");
+        return;
+      }
+    }
+
+    if (gameMode && serverAvailable.current !== false) {
+      const result = await placeBetOnServer(
+        { gameMode, slot: activeSlot },
+        { type, totalStake, selectedBets, selectionStakes },
+      );
+      if (result.ok) {
+        serverAvailable.current = true;
+        setUserProfile(result.profile);
+        setSelectedBets([]);
+        persist(result.profile);
+        return;
+      }
+      const failure = result as ServerFailure;
+      if (failure.reason === "rejected") {
+        // The server WAS reached and it has the real, authoritative balance
+        // — trust its answer rather than falling through to local logic,
+        // which could be operating on a stale/out-of-sync balance by now.
+        serverAvailable.current = true;
+        alert(failure.error);
+        return;
+      }
+      // "unreachable": no server running (or it just went away) — fall back
+      // to local computation exactly as before this feature existed.
+      serverAvailable.current = false;
+    }
+
+    placeBetLocally(type, totalStake, selectionStakes);
+  };
+
+  /** Local (client-only) cash-out — the ORIGINAL logic, used when the server isn't reachable. */
+  const cashOutLocally = (ticketId: string, offerAmount: number) => {
     if (!userProfile) return;
     const target = userProfile.tickets.find((t) => t.id === ticketId);
     if (!target || target.status !== "PENDING") return; // guard against double cash-out
@@ -184,12 +254,48 @@ export function useBetting(deps: UseBettingDeps) {
   };
 
   /**
+   * `offerAmount` is what the UI displayed to the user a moment ago (computed
+   * client-side, same as always, for the on-screen "cash out for $X" button).
+   * When the server is reachable it is NOT trusted here — the server
+   * recomputes the fair value itself from the same fixtures and only ever
+   * credits its own number. This is deliberate: a modified client could send
+   * any `offerAmount` it likes, so the server treats it as a display hint,
+   * never as the amount to actually pay out.
+   */
+  const handleCashOut = async (ticketId: string, offerAmount: number) => {
+    if (!userProfile) return;
+
+    if (gameMode && serverAvailable.current !== false) {
+      const result = await cashOutOnServer({ gameMode, slot: activeSlot }, ticketId, fixtures);
+      if (result.ok) {
+        serverAvailable.current = true;
+        addToast({
+          type: "cashout", title: "💸 Cashed Out",
+          message: `$${result.cashedOutAmount.toFixed(2)} added to wallet`, duration: 4000,
+        });
+        setUserProfile(result.profile);
+        persist(result.profile);
+        return;
+      }
+      const failure = result as ServerFailure;
+      if (failure.reason === "rejected") {
+        serverAvailable.current = true;
+        alert(failure.error);
+        return;
+      }
+      serverAvailable.current = false; // unreachable — fall back below
+    }
+
+    cashOutLocally(ticketId, offerAmount);
+  };
+
+  /**
    * Auto-settles any PENDING ticket whose fixtures have all reached FT, without
    * waiting for a round advance. This prevents tickets from sitting in a
    * pending/"suspended" limbo after their matches finish. Returns silently when
    * nothing is settleable so it is safe to call from an effect on every tick.
    */
-  const settleFinishedTickets = () => {
+  const settleFinishedTickets = async () => {
     if (!userProfile) return;
     const ftFixtures = fixtures.filter((f) => f.status === "FT");
     if (ftFixtures.length === 0) return;
@@ -203,10 +309,14 @@ export function useBetting(deps: UseBettingDeps) {
           ),
       )
       .map((t) => t.id);
-    if (settleableIds.length === 0) return;
+    const bbSettleable = (userProfile.betBuilderTickets ?? []).some(
+      (t) => t.status === "PENDING" && ftFixtures.some((f) => f.id === t.fixtureId),
+    );
+    if (settleableIds.length === 0 && !bbSettleable) return;
 
     // Mark SETTLING: transient status that prevents double settlement if the
-    // round-advance effect fires before the async setState batch settles.
+    // round-advance effect fires before the async setState batch (or the
+    // server round-trip below) settles.
     const markingTickets = userProfile.tickets.map((t) =>
       settleableIds.includes(t.id) ? { ...t, status: "SETTLING" as const } : t,
     );
@@ -215,7 +325,35 @@ export function useBetting(deps: UseBettingDeps) {
     setUserProfile(markingProfile);
     persist(markingProfile);
 
-    // NOW settle the marked tickets
+    if (gameMode && serverAvailable.current !== false) {
+      const result = await settleOnServer({ gameMode, slot: activeSlot }, ftFixtures);
+      if (result.ok) {
+        serverAvailable.current = true;
+        result.profile.tickets.forEach((ticket, idx) => {
+          if (markingTickets[idx]?.status === "SETTLING" && ticket.status !== "SETTLING") {
+            if (ticket.status === "WON") {
+              addToast({ type: "win", title: "🏆 Ticket Won!", message: `+$${(ticket.settledPayout ?? ticket.potentialPayout).toFixed(2)} payout`, duration: 5000 });
+            } else if (ticket.status === "LOST") {
+              addToast({ type: "loss", title: "Ticket Lost", message: `-$${ticket.stake.toFixed(2)} stake lost`, duration: 3000 });
+            }
+          }
+        });
+        setUserProfile(result.profile);
+        persist(result.profile);
+        return;
+      }
+      const failure = result as ServerFailure;
+      if (failure.reason === "rejected") {
+        serverAvailable.current = true;
+        // Nothing sensible to do but leave the SETTLING marks as-is and try
+        // again next tick — don't fall through to local settlement, which
+        // would credit a balance the server (now authoritative) doesn't know about.
+        return;
+      }
+      serverAvailable.current = false; // unreachable — fall back below
+    }
+
+    // Local settlement (server unavailable) — original logic, unchanged.
     const { finalTickets, totalWinPayoutSum } = settlePendingTickets(
       markingTickets,
       ftFixtures,
@@ -240,7 +378,8 @@ export function useBetting(deps: UseBettingDeps) {
     persist(nextProfile);
   };
 
-  const handlePlaceBetBuilder = (
+  /** Local (client-only) Bet Builder placement — the ORIGINAL logic, used when the server isn't reachable. */
+  const placeBetBuilderLocally = (
     fixtureId: string,
     selections: BetBuilderSelection[],
     stake: number,
@@ -276,6 +415,40 @@ export function useBetting(deps: UseBettingDeps) {
     setUserProfile(nextProfile);
     persist(nextProfile);
     return true;
+  };
+
+  /**
+   * NOTE: `combinedOdds` here is a display value the caller already computed
+   * (used for the local-fallback path only). When the server is reachable it
+   * recomputes the same correlation-discounted odds itself and that's the
+   * number actually charged/paid — see server/index.ts's place-builder route.
+   */
+  const handlePlaceBetBuilder = async (
+    fixtureId: string,
+    selections: BetBuilderSelection[],
+    stake: number,
+    combinedOdds: number,
+  ): Promise<boolean> => {
+    if (!userProfile) return false;
+
+    if (gameMode && serverAvailable.current !== false) {
+      const result = await placeBetBuilderOnServer({ gameMode, slot: activeSlot }, { fixtureId, selections, stake });
+      if (result.ok) {
+        serverAvailable.current = true;
+        setUserProfile(result.profile);
+        persist(result.profile);
+        return true;
+      }
+      const failure = result as ServerFailure;
+      if (failure.reason === "rejected") {
+        serverAvailable.current = true;
+        alert(failure.error);
+        return false;
+      }
+      serverAvailable.current = false; // unreachable — fall back below
+    }
+
+    return placeBetBuilderLocally(fixtureId, selections, stake, combinedOdds);
   };
 
   return {
